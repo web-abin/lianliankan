@@ -1,0 +1,1 @@
+"use strict";Object.defineProperty(exports,Symbol.toStringTag,{value:"Module"});require("./index-BBXjO6-2.cjs");const o=require("./index-CsJ-zL4E.cjs");let e,t;function u(r,i){r!==t&&(e&&e.hide(),e=o.routes[r],t=r,e.show(i))}exports.go=u;
