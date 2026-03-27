@@ -33,7 +33,23 @@ export const ASSET_URLS = [
   'assets/scene/home/home-footer.png',
   'assets/scene/home/flower1.png',
   'assets/scene/home/flower2.png',
-  'assets/scene/common/role.png',
+  'assets/live2d/role/body1.png',
+  'assets/live2d/role/ear-left.png',
+  'assets/live2d/role/ear-right.png',
+  'assets/live2d/role/eye-left.png',
+  'assets/live2d/role/eye-left-close.png',
+  'assets/live2d/role/eye-right.png',
+  'assets/live2d/role/eye-right-close.png',
+  'assets/live2d/role/eyebrow-left.png',
+  'assets/live2d/role/eyebrow-right.png',
+  'assets/live2d/role/head.png',
+  'assets/live2d/role/leg-left.png',
+  'assets/live2d/role/leg-left-behind.png',
+  'assets/live2d/role/leg-right.png',
+  'assets/live2d/role/leg-right-behind.png',
+  'assets/live2d/role/mouth-close.png',
+  'assets/live2d/role/mouth-open.png',
+  'assets/live2d/role/water.png',
   'assets/text/ka-pi-ba-la.png',
   'assets/button/setting.png',
   'assets/button/circle.png',
@@ -278,26 +294,23 @@ export function create(
   flower1Spr.position.set(DESIGN_W - 140, (DESIGN_H * 4) / 7)
   root.addChild(flower1Spr)
 
-  // 茶几 + 卡皮巴拉：脚底落在茶几顶面，组合外接矩形中心在设计稿 (DESIGN_W/2, DESIGN_H/2)
+  // 茶几 + Live2D 卡皮巴拉：脚底落在茶几顶面，组合外接矩形中心在设计稿 (DESIGN_W/2, DESIGN_H/2)
   const TABLE_W = 400
   const tableSpr = S('assets/scene/home/home-table.png')
   tableSpr.width = TABLE_W
   tableSpr.height = Math.round((TABLE_W / 360) * 115)
-  const roleSpr = S('assets/scene/common/role.png')
-  roleSpr.width = 265
-  roleSpr.height = Math.round((265 / 800) * 1089)
   const th = tableSpr.height
-  const rh = roleSpr.height
-  // 脚底相对茶几顶下移 th/2，像坐在茶几上；外接矩形中心仍落在组原点
-  const bottomY = th / 4 + rh / 2
+  const CAP_H = 354  // live2d 卡皮巴拉近似视觉高度（耳顶到脚底）
+  const bottomY = th / 4 + CAP_H / 2
   const heroGroup = new PIXI.Container()
   heroGroup.position.set(DESIGN_W / 2, DESIGN_H / 2 + safeAreaTopPx + 40)
   tableSpr.anchor.set(0.5, 1)
   tableSpr.position.set(0, bottomY)
-  roleSpr.anchor.set(0.5, 1)
-  roleSpr.position.set(0, bottomY - (th * 2) / 3)
   heroGroup.addChild(tableSpr)
-  heroGroup.addChild(roleSpr)
+  // Live2D 卡皮巴拉（cap 原点 = 脚底，向上为负）
+  const { capContainer, capTick } = buildCapybara()
+  capContainer.position.set(0, bottomY - Math.round((th * 2) / 3))
+  heroGroup.addChild(capContainer)
   root.addChild(heroGroup)
 
   // 每日挑战按钮（challenge.png 180×205 → 宽 112）
@@ -373,9 +386,11 @@ export function create(
   }
   const onWrapAdded = () => {
     ticker.add(breathe)
+    ticker.add(capTick)
   }
   const onWrapRemoved = () => {
     ticker.remove(breathe)
+    ticker.remove(capTick)
   }
   wrapper.on('added', onWrapAdded)
   wrapper.on('removed', onWrapRemoved)
@@ -472,6 +487,269 @@ export function create(
 // ════════════════════════════════════════════════════════════
 
 function noop() {}
+
+/**
+ * 构建 Live2D 风格卡皮巴拉动画
+ *
+ * 坐标系：cap 容器原点 = 脚底中心，向上为负 Y
+ * 层级（后→前）：后腿 → 身体 → 前腿 → 头部组（耳→头→眉→眼→嘴）→ 水滴
+ *
+ * 动画：
+ *  1. 身体呼吸（±3px 上下，3.2s 周期）
+ *  2. 头部微摇摆（±1.3°，4.8s 周期）+ 随呼吸同步微移
+ *  3. 眨眼（随机间隔 3-7s，0.18s 完成）
+ *  4. 耳朵随机抖动（随机间隔 2.5-5.5s，0.22s 完成）
+ *  5. 水滴从头顶上方落下（ease-in 加速，落地时拉伸 → 扁平消散）
+ *  6. 水滴落地：头部下沉 + 弹回，嘴巴张开 0.55s
+ */
+function buildCapybara(): { capContainer: PIXI.Container; capTick: () => void } {
+  const SC = 0.58  // 所有部件统一缩放比例
+
+  // 缩放后各部件尺寸（px）
+  const LH = Math.round(160 * SC)   // 腿高 ≈ 93
+  const BH = Math.round(247 * SC)   // 身体高 ≈ 143
+  const BW = Math.round(298 * SC)   // 身体宽 ≈ 173
+  const HH = Math.round(194 * SC)   // 头高 ≈ 113
+  const EAR_H = Math.round(62 * SC) // 耳高 ≈ 36
+
+  // Y 基准（cap 原点 = 脚底，向上为负）
+  const bodyBaseY = -(LH + Math.round(BH / 2) - 22)
+  const headBaseY = -(LH + BH - 22 + Math.round(HH / 2))
+
+  const cap = new PIXI.Container()
+
+  // 工厂：创建缩放 + 锚点设置好的 Sprite
+  function mk(url: string, ax = 0.5, ay = 0.5): PIXI.Sprite {
+    const spr = PIXI.Sprite.from(url)
+    spr.scale.set(SC)
+    spr.anchor.set(ax, ay)
+    return spr
+  }
+
+  // ── 后腿（在身体之下渲染）────────────────────────────────
+  const legRightBehind = mk('assets/live2d/role/leg-right-behind.png', 0.5, 0)
+  legRightBehind.position.set(Math.round(BW * 0.38), -LH)
+  const legLeftBehind = mk('assets/live2d/role/leg-left-behind.png', 0.5, 0)
+  legLeftBehind.position.set(-Math.round(BW * 0.36), -LH)
+
+  // ── 身体 ─────────────────────────────────────────────────
+  const body = mk('assets/live2d/role/body1.png')
+  body.position.set(0, bodyBaseY)
+
+  // ── 前腿（在身体之上渲染）────────────────────────────────
+  const legRight = mk('assets/live2d/role/leg-right.png', 0.5, 0)
+  legRight.position.set(Math.round(BW * 0.24), -LH + 10)
+  const legLeft = mk('assets/live2d/role/leg-left.png', 0.5, 0)
+  legLeft.position.set(-Math.round(BW * 0.21), -LH + 10)
+
+  // ── 头部组（用于整体偏移动画）────────────────────────────
+  const headGroup = new PIXI.Container()
+  headGroup.position.set(8, headBaseY)
+
+  // 耳朵：anchor 在底部（耳根），绕耳根旋转
+  const earLeft = mk('assets/live2d/role/ear-left.png', 0.5, 1)
+  earLeft.position.set(-Math.round(HH * 0.31), -Math.round(HH * 0.47))
+  const earRight = mk('assets/live2d/role/ear-right.png', 0.5, 1)
+  earRight.position.set(Math.round(HH * 0.37), -Math.round(HH * 0.47))
+
+  const head = mk('assets/live2d/role/head.png')
+
+  // 眼睛（open/close 叠放，close 默认隐藏）
+  const eyeLeft = mk('assets/live2d/role/eye-left.png')
+  eyeLeft.position.set(-Math.round(HH * 0.17), -Math.round(HH * 0.1))
+  const eyeLeftClose = mk('assets/live2d/role/eye-left-close.png')
+  eyeLeftClose.position.set(-Math.round(HH * 0.17), -Math.round(HH * 0.1))
+  eyeLeftClose.visible = false
+
+  const eyeRight = mk('assets/live2d/role/eye-right.png')
+  eyeRight.position.set(Math.round(HH * 0.22), -Math.round(HH * 0.1))
+  const eyeRightClose = mk('assets/live2d/role/eye-right-close.png')
+  eyeRightClose.position.set(Math.round(HH * 0.22), -Math.round(HH * 0.1))
+  eyeRightClose.visible = false
+
+  // 眉毛
+  const eyebrowLeft = mk('assets/live2d/role/eyebrow-left.png')
+  eyebrowLeft.position.set(-Math.round(HH * 0.17), -Math.round(HH * 0.32))
+  const eyebrowRight = mk('assets/live2d/role/eyebrow-right.png')
+  eyebrowRight.position.set(Math.round(HH * 0.22), -Math.round(HH * 0.32))
+
+  // 嘴巴（open/close 叠放）
+  const mouthClose = mk('assets/live2d/role/mouth-close.png')
+  mouthClose.position.set(Math.round(HH * 0.04), Math.round(HH * 0.2))
+  const mouthOpen = mk('assets/live2d/role/mouth-open.png')
+  mouthOpen.position.set(Math.round(HH * 0.04), Math.round(HH * 0.2))
+  mouthOpen.visible = false
+
+  // headGroup 层级：耳（后）→ 头 → 眉 → 眼 → 嘴（前）
+  headGroup.addChild(earLeft)
+  headGroup.addChild(earRight)
+  headGroup.addChild(head)
+  headGroup.addChild(eyebrowLeft)
+  headGroup.addChild(eyebrowRight)
+  headGroup.addChild(eyeLeft)
+  headGroup.addChild(eyeLeftClose)
+  headGroup.addChild(eyeRight)
+  headGroup.addChild(eyeRightClose)
+  headGroup.addChild(mouthClose)
+  headGroup.addChild(mouthOpen)
+
+  // cap 层级：后腿 → 身体 → 前腿 → 头部组
+  cap.addChild(legRightBehind)
+  cap.addChild(legLeftBehind)
+  cap.addChild(body)
+  cap.addChild(legRight)
+  cap.addChild(legLeft)
+  cap.addChild(headGroup)
+
+  // ── 水滴（anchor 在顶部，落下方向） ──────────────────────
+  const water = PIXI.Sprite.from('assets/live2d/role/water.png')
+  water.scale.set(SC * 0.9)
+  water.anchor.set(0.5, 0)
+  // 水滴 X 对齐头部中心（headGroup 的 x 偏移）
+  const WX = 8
+  // 起始位置：头顶上方约 120px；落点：耳朵顶部附近
+  const WY0 = headBaseY - Math.round(HH / 2) - EAR_H - 120
+  const WY1 = headBaseY - Math.round(HH / 2) - EAR_H + 8
+  water.position.set(WX, WY0)
+  water.alpha = 0
+  cap.addChild(water)
+
+  // ── 动画状态 ─────────────────────────────────────────────
+  let elapsed = 0
+
+  // 眨眼
+  let blinkCD = 2.5 + Math.random() * 2.5  // 倒计时（s）
+  let blinkP = -1                            // -1=未眨眼，0~1=眨眼进度
+
+  // 耳朵抖动
+  let earCD = 1 + Math.random() * 2
+  let earP = -1
+  let earAmp = 0    // 含方向的幅度
+
+  // 水滴
+  type WPhase = 'wait' | 'fall' | 'impact'
+  let wPhase: WPhase = 'wait'
+  let wTimer = 0.5 + Math.random() * 0.5   // 首次水滴延迟
+  let wT = 0                                // 当前阶段进度 0~1
+
+  // 头部撞击下沉
+  let headBobP = -1   // -1=未激活
+  let mouthTimer = 0  // 张嘴剩余秒数
+
+  const capTick = () => {
+    const dt = ticker.deltaMS / 1000
+    elapsed += dt
+
+    // 1. 身体呼吸（±3px，周期 3.2s）
+    body.position.y = bodyBaseY + Math.sin(elapsed * (Math.PI * 2 / 3.2)) * 3
+
+    // 2. 头部摇摆（±1.3°，4.8s 周期）+ 随呼吸同步微移
+    const breatheShift = Math.sin(elapsed * (Math.PI * 2 / 3.2)) * 1.5
+    const swayRot = Math.sin(elapsed * (Math.PI * 2 / 4.8)) * 0.023
+
+    // 3. 眨眼
+    blinkCD -= dt
+    if (blinkCD <= 0 && blinkP < 0) blinkP = 0
+    if (blinkP >= 0) {
+      blinkP = Math.min(blinkP + dt * 5.5, 1)
+      const closed = blinkP < 0.5
+      eyeLeft.visible = !closed
+      eyeRight.visible = !closed
+      eyeLeftClose.visible = closed
+      eyeRightClose.visible = closed
+      if (blinkP >= 1) {
+        blinkP = -1
+        eyeLeft.visible = true
+        eyeRight.visible = true
+        eyeLeftClose.visible = false
+        eyeRightClose.visible = false
+        blinkCD = 3 + Math.random() * 4
+      }
+    }
+
+    // 4. 耳朵抖动
+    earCD -= dt
+    if (earCD <= 0 && earP < 0) {
+      earP = 0
+      earAmp = (Math.random() > 0.5 ? 1 : -1) * (0.12 + Math.random() * 0.1)
+    }
+    if (earP >= 0) {
+      earP = Math.min(earP + dt * 4.5, 1)
+      const w = earAmp * Math.sin(earP * Math.PI)
+      earLeft.rotation = w * 0.65
+      earRight.rotation = -w
+      if (earP >= 1) {
+        earP = -1
+        earLeft.rotation = 0
+        earRight.rotation = 0
+        earCD = 2.5 + Math.random() * 3
+      }
+    }
+
+    // 5. 水滴动画
+    if (wPhase === 'wait') {
+      wTimer -= dt
+      if (wTimer <= 0) {
+        wPhase = 'fall'
+        wT = 0
+        water.alpha = 1
+        water.scale.set(SC * 0.9)
+        water.position.set(WX, WY0)
+      }
+    } else if (wPhase === 'fall') {
+      wT = Math.min(wT + dt * 1.15, 1)
+      const ease = wT * wT  // ease-in 加速
+      water.position.y = WY0 + (WY1 - WY0) * ease
+      // 下落时纵向拉伸、横向微收
+      water.scale.set(SC * 0.78, SC * (0.9 + wT * 0.12))
+      if (wT >= 1) {
+        wPhase = 'impact'
+        wT = 0
+        water.position.y = WY1
+        // 触发头部下沉
+        headBobP = 0
+        // 触发张嘴
+        mouthClose.visible = false
+        mouthOpen.visible = true
+        mouthTimer = 0.55
+      }
+    } else {  // impact
+      wT = Math.min(wT + dt * 7, 1)
+      // 扁平横向扩散 + 淡出
+      water.scale.set(SC * 0.9 * (1 + wT * 2.5), SC * 0.9 * (1 - wT) * 0.3)
+      water.alpha = 1 - wT
+      if (wT >= 1) {
+        wPhase = 'wait'
+        wTimer = 1.8 + Math.random() * 1.6
+        water.alpha = 0
+      }
+    }
+
+    // 6. 头部撞击下沉 + 弹回
+    let headBobOffset = 0
+    if (headBobP >= 0) {
+      headBobP = Math.min(headBobP + dt * 4.5, 1)
+      // 正弦波：先下沉后弹回
+      headBobOffset = 11 * Math.sin(headBobP * Math.PI) * (1 - headBobP * 0.35)
+      if (headBobP >= 1) headBobP = -1
+    }
+
+    // 综合更新头部位置和旋转
+    headGroup.position.y = headBaseY + breatheShift + headBobOffset
+    headGroup.rotation = swayRot
+
+    // 7. 还原嘴巴
+    if (mouthTimer > 0) {
+      mouthTimer -= dt
+      if (mouthTimer <= 0) {
+        mouthClose.visible = true
+        mouthOpen.visible = false
+      }
+    }
+  }
+
+  return { capContainer: cap, capTick }
+}
 
 /** 创建 Sprite */
 function S(url: string): PIXI.Sprite {

@@ -1,131 +1,60 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>水豚连连看 - UI还原</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capybara Water Animation</title>
     <style>
-        :root {
-            --sprite-url: url('sprite_sheet.png'); /* 请确保图片文件名正确 */
-        }
-
         body {
-            background: #333;
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
+            background-color: #000; /* Matching background */
             margin: 0;
         }
 
-        /* 手机画布容器 */
-        .phone-canvas {
-            width: 375px;
-            height: 667px;
-            background-color: #E6D9B8; /* 墙面底色 */
-            position: relative;
-            overflow: hidden;
-            border: 8px solid #5D4037;
-            border-radius: 20px;
-        }
+        .capybara-animation {
+            /* IMPORTANT: 
+               These dimensions are for *one single frame*.
+               Since there are 12 frames in total, the original image (which is 1616x113) 
+               is divided by 12: 1616 / 12 = 134.66.
+               We'll use 135px as an approximation for the width.
+            */
+            width: 135px; 
+            height: 140px; /* Full height of the image */
 
-        /* 通用精灵图类 */
-        .sprite {
-            background-image: var(--sprite-url);
+            /* Link to your sprite image */
+            background-image: url('xulie.png');
+            background-size: auto 140px;
             background-repeat: no-repeat;
-            position: absolute;
-            background-size: 800px auto; /* 假设原图宽度缩放到800px计算，需根据你原图实际宽度微调 */
+            
+            /* Start with the first frame visible */
+            background-position: 0px 0px;
+
+            /* Create the animation.
+               'capybara-wash' is the name defined below.
+               '1.2s' is the duration for one complete cycle.
+               'steps(12)' is the key: it jumps frame-by-frame instead of a smooth slide.
+               'infinite' makes it loop forever.
+            */
+            animation: capybara-wash 1.2s steps(12) infinite;
+
         }
 
-        /* --- 顶部区域 --- */
-        .top-bar {
-            width: 282px; height: 42px;
-            background-position: -273px -14px;
-            top: 20px; left: 70px;
+        /* 精准逐帧雪碧动画：最后帧应只偏移 11 格（第0帧到第11帧），不应是12格 */
+        @keyframes capybara-wash {
+            from {
+                background-position:    0px 0px;
+            }
+            to {
+                /* 只移动 11 个帧宽 */
+                background-position: -1485px 0px; /* 135px × 11 = 1485px */
+            }
         }
-        .icon-setting {
-            width: 45px; height: 45px;
-            background-position: -273px -12px; /* 齿轮图标 */
-            top: 18px; left: 15px;
-            transform: scale(0.9);
-        }
-
-        /* --- 主标题 --- */
-        .main-title {
-            width: 330px; height: 130px;
-            background-position: -273px -140px;
-            top: 80px; left: 25px;
-        }
-
-        /* --- 装饰品 --- */
-        .shelf {
-            width: 154px; height: 26px;
-            background-position: -510px -600px;
-            top: 310px; right: 0;
-        }
-        .photo-frame {
-            width: 65px; height: 85px;
-            background-position: -415px -575px;
-            top: 300px; left: 75px;
-        }
-
-        /* --- 水豚角色 --- */
-        .platform {
-            width: 175px; height: 45px;
-            background-position: -18px -590px;
-            bottom: 230px; left: 100px;
-        }
-        .capybara {
-            width: 145px; height: 180px;
-            background-position: -230px -438px; /* 闭眼版 */
-            bottom: 255px; left: 115px;
-        }
-
-        /* --- 交互按钮 --- */
-        .btn-start {
-            width: 195px; height: 75px;
-            background-position: -18px -375px;
-            bottom: 100px; left: 90px;
-            cursor: pointer;
-        }
-
-        /* --- 底部导航栏 --- */
-        .footer {
-            width: 100%; height: 80px;
-            background-color: #A17D5F; /* 地板色 */
-            position: absolute; bottom: 0;
-            display: flex; justify-content: space-around; align-items: center;
-        }
-        .nav-item {
-            width: 65px; height: 65px;
-            position: relative;
-        }
-        .icon-shop { background-position: -725px -245px; width: 65px; height: 65px; top:0; left:0;}
-        .icon-theme { background-position: -815px -245px; width: 65px; height: 65px; top:0; left:0;}
-        .icon-home { background-position: -725px -345px; width: 65px; height: 65px; top:0; left:0;}
-
     </style>
 </head>
 <body>
-
-    <div class="phone-canvas">
-        <div class="sprite icon-setting"></div>
-        <div class="sprite top-bar"></div>
-
-        <div class="sprite main-title"></div>
-        <div class="sprite photo-frame"></div>
-        <div class="sprite shelf"></div>
-
-        <div class="sprite platform"></div>
-        <div class="sprite capybara"></div>
-
-        <div class="sprite btn-start"></div>
-
-        <div class="footer">
-            <div class="sprite icon-shop"></div>
-            <div class="sprite icon-theme"></div>
-            <div class="sprite icon-home"></div>
-        </div>
-    </div>
-
+    <div class="capybara-animation"></div>
 </body>
 </html>
