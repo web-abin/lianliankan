@@ -337,7 +337,7 @@ export function create(
 
   // 按钮底图（start.png 600×184 → 宽 545）
   const startBg = S('assets/button/start.png')
-  startBg.width = 545
+  startBg.width = 480
   startBg.height = START_BTN_H
   startBg.anchor.set(0.5, 0.5)
   startGroup.addChild(startBg)
@@ -348,7 +348,7 @@ export function create(
     fontSize: 50,
     fill: 0x5c2200,
     fontWeight: '900',
-    letterSpacing: 12
+    letterSpacing: 24
   })
   startL1.anchor.set(0.5, 1)
   startL1.position.set(0, -4)
