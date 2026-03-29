@@ -9,11 +9,23 @@ import { ASSET_URLS } from '~/ui/home'
 let root: PIXI.Container | null = null
 
 async function preload() {
-  const toLoad = ASSET_URLS.filter(url => !loader.resources[url])
+  const toLoad: string[] = (ASSET_URLS as unknown as string[]).filter(url => !loader.resources[url])
+  // 预加载首页角色动画帧，避免进入场景后 AnimatedSprite 播放时出现白帧闪烁
+  for (let i = 1; i <= 120; i++) {
+    const n = String(i).padStart(3, '0')
+    const url = `assets/animate/role_ascii/role-${n}.png`
+    if (!loader.resources[url]) toLoad.push(url)
+  }
   if (toLoad.length === 0) return
   await new Promise<void>(resolve => {
+    // 忽略个别资源加载失败，尽量不阻塞首页进入
+    const onError = () => {}
+    ;(loader as any).onError?.add?.(onError)
     toLoad.forEach(url => loader.add(url))
-    loader.load(() => resolve())
+    loader.load(() => {
+      ;(loader as any).onError?.remove?.(onError)
+      resolve()
+    })
   })
 }
 
