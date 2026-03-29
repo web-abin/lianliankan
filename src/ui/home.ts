@@ -265,57 +265,46 @@ export function create(
   root.addChild(paintingSpr)
 
   // 花盆1 左侧小盆（flower2.png 120×150 → 宽 90）
-  const flower2Spr = S('assets/scene/home/flower2.png')
-  flower2Spr.width = 90
-  flower2Spr.height = Math.round((90 / 120) * 150) // ≈ 113
-  flower2Spr.position.set(-8, (DESIGN_H * 4) / 7 - 20)
-  root.addChild(flower2Spr)
+  // const flower2Spr = S('assets/scene/home/flower2.png')
+  // flower2Spr.width = 90
+  // flower2Spr.height = Math.round((90 / 120) * 150) // ≈ 113
+  // flower2Spr.position.set(DESIGN_W - 140, (DESIGN_H * 4.5) / 7)
+  // root.addChild(flower2Spr)
 
   // 花盆2 右侧大盆（flower1.png 200×365 → 宽 125）
-  const flower1Spr = S('assets/scene/home/flower1.png')
-  flower1Spr.width = 125
-  flower1Spr.height = Math.round((125 / 200) * 365) // ≈ 228
-  flower1Spr.position.set(DESIGN_W - 140, (DESIGN_H * 4) / 7)
-  root.addChild(flower1Spr)
+  // const flower1Spr = S('assets/scene/home/flower1.png')
+  // flower1Spr.width = 125
+  // flower1Spr.height = Math.round((125 / 200) * 365) // ≈ 228
+  // flower1Spr.position.set(DESIGN_W - 140, (DESIGN_H * 4) / 7)
+  // root.addChild(flower1Spr)
 
-  // 茶几 + 卡皮巴拉：脚底落在茶几顶面，组合外接矩形中心在设计稿 (DESIGN_W/2, DESIGN_H/2)
-  const TABLE_W = 400
-  const tableSpr = S('assets/scene/home/home-table.png')
-  tableSpr.width = TABLE_W
-  tableSpr.height = Math.round((TABLE_W / 360) * 115)
-  const roleSpr = S('assets/scene/common/role.png')
-  roleSpr.width = 265
-  roleSpr.height = Math.round((265 / 800) * 1089)
-  const th = tableSpr.height
-  const rh = roleSpr.height
-  // 脚底相对茶几顶下移 th/2，像坐在茶几上；外接矩形中心仍落在组原点
-  const bottomY = th / 4 + rh / 2
+  // 卡皮巴拉待机动画
   const heroGroup = new PIXI.Container()
   heroGroup.position.set(DESIGN_W / 2, DESIGN_H / 2 + safeAreaTopPx + 40)
-  tableSpr.anchor.set(0.5, 1)
-  tableSpr.position.set(0, bottomY)
-  roleSpr.anchor.set(0.5, 1)
-  roleSpr.position.set(0, bottomY - (th * 2) / 3)
-  heroGroup.addChild(tableSpr)
-  heroGroup.addChild(roleSpr)
+  const roleFrames: PIXI.Texture[] = []
+  for (let i = 1; i <= 120; i++) {
+    const n = String(i).padStart(3, '0')
+    roleFrames.push(PIXI.Texture.from(`assets/animate/role_ascii/role-${n}.png`))
+  }
+  const roleAnim = new PIXI.AnimatedSprite(roleFrames)
+  roleAnim.anchor.set(0.5, 0.5)
+  const targetW = Math.round(DESIGN_W * 2/ 3)
+  const tex0 = roleFrames[0]
+  const applyRoleScale = () => {
+    const w = (tex0 as any)?.orig?.width || tex0?.width || targetW
+    if (w > 0) {
+      const s = targetW / w
+      roleAnim.scale.set(s)
+    }
+  }
+  const base = (tex0 as any)?.baseTexture
+  if (base?.valid) applyRoleScale()
+  else base?.once?.('loaded', applyRoleScale)
+  roleAnim.loop = true
+  roleAnim.animationSpeed = 0.4
+  roleAnim.play()
+  heroGroup.addChild(roleAnim)
   root.addChild(heroGroup)
-
-  // 每日挑战按钮（challenge.png 180×205 → 宽 112）
-  const challengeGroup = new PIXI.Container()
-  click(challengeGroup, onDailyChallenge)
-  challengeGroup.position.set(DESIGN_W - 120, DESIGN_H /2 - 60)
-  root.addChild(challengeGroup)
-
-  const challengeSpr = S('assets/button/challenge.png')
-  challengeSpr.width = 112
-  challengeSpr.height = Math.round((112 / 180) * 205) // ≈ 128
-  challengeGroup.addChild(challengeSpr)
-
-  const challengeLabel = T('每日挑战', 22, 0x5a2d0c, '700')
-  challengeLabel.anchor.set(0.5, 0)
-  challengeLabel.position.set(36, 132)
-  challengeGroup.addChild(challengeLabel)
-
   // ════════════════════════════════════════════════════════
   // 6. 开始游戏按钮（底边与菜单栏顶相距 80px，见下方 NAV_TOP）
   // ════════════════════════════════════════════════════════
@@ -380,24 +369,25 @@ export function create(
   wrapper.on('added', onWrapAdded)
   wrapper.on('removed', onWrapRemoved)
 
+  // 每日挑战按钮（challenge.png 180×205 → 宽 112）
+  const challengeGroup = new PIXI.Container()
+  click(challengeGroup, onDailyChallenge)
+  challengeGroup.position.set(DESIGN_W - 120, DESIGN_H - 540)
+  root.addChild(challengeGroup)
+
+  const challengeSpr = S('assets/button/challenge.png')
+  challengeSpr.width = 112
+  challengeSpr.height = Math.round((112 / 180) * 205) // ≈ 128
+  challengeGroup.addChild(challengeSpr)
+
+  const challengeLabel = T('每日挑战', 22, 0x5a2d0c, '700')
+  challengeLabel.anchor.set(0.5, 0)
+  challengeLabel.position.set(36, 132)
+  challengeGroup.addChild(challengeLabel)
+
   // ════════════════════════════════════════════════════════
   // 7. 底部导航栏（木板为最底层背景，半透明色叠在木板上，图标与文字最上层）
   // ════════════════════════════════════════════════════════
-
-  const BOTTOM_BG_H = NAV_H
-  // 木板铺满底部整条（原装饰条 + 导航区），先加入 root 保证在菜单内容之下
-  const footerSpr = S('assets/scene/home/home-footer.png')
-  footerSpr.width = DESIGN_W
-  footerSpr.height = BOTTOM_BG_H
-  footerSpr.position.set(0, DESIGN_H - BOTTOM_BG_H)
-  root.addChild(footerSpr)
-
-  // 半透明暖色叠在木板上，不盖住木纹
-  const navBg = new PIXI.Graphics()
-  navBg.beginFill(0xc8924a, 0.42)
-  navBg.drawRect(0, NAV_TOP, DESIGN_W, NAV_H)
-  navBg.endFill()
-  root.addChild(navBg)
 
   // 4 个导航项
   const NAV_ITEMS = [
@@ -435,35 +425,42 @@ export function create(
     cell.position.set(cx, NAV_TOP + 14)
     root.addChild(cell)
 
-    // 导航图标（各图标约 80×70 → 显示 72px 宽）
+    const CELL_INSET_X = 12
+    const CELL_INSET_Y = 10
+    const cellW = Math.max(80, Math.round(CELL_W - CELL_INSET_X * 2))
+    const cellH = Math.max(88, Math.round(NAV_H - CELL_INSET_Y * 2))
+    const R = 18
+
+    const COLOR_NORMAL = 0xd78f57
+    const COLOR_ACTIVE = 0xf0b45c
+    const bg = new PIXI.Graphics()
+    bg.lineStyle(4, 0x000000, 1)
+    bg.beginFill(item.active ? COLOR_ACTIVE : COLOR_NORMAL, 1)
+    bg.drawRoundedRect(-cellW / 2, 0, cellW, cellH, R)
+    bg.endFill()
+    cell.addChild(bg)
+
     const iconSpr = S(item.url)
     iconSpr.width = 72
-    iconSpr.height = Math.round((72 / 80) * 72) // ≈ 65（近似，各图标高度略不同）
+    iconSpr.height = Math.round((72 / 80) * 72)
     iconSpr.anchor.set(0.5, 0)
+    iconSpr.position.set(0, 10)
     cell.addChild(iconSpr)
+    addSpriteOutline(iconSpr, 2)
 
-    // 主页图标激活高亮背景
-    if (item.active) {
-      const hl = new PIXI.Graphics()
-      hl.beginFill(0xe8a030, 0.35)
-      hl.drawRoundedRect(-44, -6, 88, 88, 16)
-      hl.endFill()
-      cell.addChildAt(hl, 0)
-    }
-
-    // 导航文字标签
-    const lbl = T(
-      item.label,
-      24,
-      item.active ? 0xc85000 : 0x7a5533,
-      item.active ? '700' : '400'
-    )
+    const lbl = new PIXI.Text(item.label, {
+      fontFamily: 'sans-serif',
+      fontSize: 24,
+      fontWeight: '900',
+      fill: 0xffffff,
+      stroke: 0x000000,
+      strokeThickness: 6
+    })
     lbl.anchor.set(0.5, 0)
-    lbl.position.set(0, 72)
+    lbl.position.set(0, iconSpr.y + iconSpr.height + 8)
     cell.addChild(lbl)
   })
 
-  parent.addChild(wrapper)
   return wrapper
 }
 
@@ -534,4 +531,29 @@ function sideEntry(
   group.addChild(lbl)
 
   return group
+}
+
+function addSpriteOutline(sprite: PIXI.Sprite, thickness = 2) {
+  const p = sprite.parent
+  if (!p) return
+  const idx = p.getChildIndex(sprite)
+  const offsets = [
+    [-thickness, 0],
+    [thickness, 0],
+    [0, -thickness],
+    [0, thickness],
+    [-thickness, -thickness],
+    [-thickness, thickness],
+    [thickness, -thickness],
+    [thickness, thickness]
+  ]
+  for (const [dx, dy] of offsets) {
+    const s = new PIXI.Sprite(sprite.texture)
+    s.tint = 0x000000
+    s.anchor.set(sprite.anchor.x, sprite.anchor.y)
+    s.position.set(sprite.x + dx, sprite.y + dy)
+    s.width = sprite.width
+    s.height = sprite.height
+    p.addChildAt(s, idx)
+  }
 }

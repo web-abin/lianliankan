@@ -313,3 +313,25 @@ dist/             # 微信开发者工具导入此目录
   game.js         # vite 构建产物（单文件 CJS）
   game.json       # 小游戏配置
 ```
+
+---
+
+## 17. AnimatedSprite 宽高设置时机
+
+**问题**：在帧纹理未就绪（baseTexture 未 valid）时直接给 `AnimatedSprite` 设置 `width/height`，纹理初始尺寸为 0，后续纹理加载完成后会出现异常放大或显示尺寸不符合预期（比如想设为屏宽的一半却超大）。
+
+**正确做法**：
+- 等首帧纹理就绪后再按目标宽度等比缩放，优先使用 `scale` 而非在未就绪时直接设 `width/height`。
+- 计算方式：`s = targetW / tex0.width`，然后 `roleAnim.scale.set(s)`；其中 `targetW` 可为 `DESIGN_W / 2`（设计坐标的一半，对应屏幕一半）。
+
+```ts
+const roleAnim = new PIXI.AnimatedSprite(roleFrames)
+const targetW = Math.round(DESIGN_W / 2)
+const tex0 = roleFrames[0]
+const base = (tex0 as any).baseTexture
+const apply = () => {
+  const w = (tex0 as any).orig?.width || tex0.width
+  if (w > 0) roleAnim.scale.set(targetW / w)
+}
+base?.valid ? apply() : base?.once?.('loaded', apply)
+```
