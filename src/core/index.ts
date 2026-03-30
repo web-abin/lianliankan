@@ -30,7 +30,7 @@ const renderer = new PIXI.Renderer({
   view: canvas,
   antialias: true,
   resolution: pixelRatio,
-  backgroundColor: 0x161a23,
+  backgroundColor: 0xf5ead8,
   powerPreference: 'high-performance',
 })
 

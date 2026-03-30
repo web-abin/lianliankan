@@ -20,6 +20,7 @@ import {
   windowWidth,
   windowHeight
 } from '~/core'
+import { readFile } from '~/util'
 
 /** 标题图宽度占设计稿宽的比例 */
 const TITLE_WIDTH_W_RATIO = 420 / DESIGN_REF_W
@@ -27,13 +28,9 @@ const TITLE_WIDTH_W_RATIO = 420 / DESIGN_REF_W
 // 所有图片路径（统一在此定义，方便路由预加载）
 export const ASSET_URLS = [
   'assets/scene/home/bg-home.jpg',
-  'assets/scene/home/status-bg.png',
   'assets/scene/home/painting.png',
-  'assets/scene/home/home-table.png',
-  'assets/scene/home/home-footer.png',
   'assets/scene/home/flower1.png',
   'assets/scene/home/flower2.png',
-  'assets/scene/common/role.png',
   'assets/text/ka-pi-ba-la.png',
   'assets/button/setting.png',
   'assets/button/circle.png',
@@ -50,6 +47,10 @@ export const ASSET_URLS = [
   'assets/icon/home.png',
   'assets/icon/range.png'
 ] as const
+
+/** 首页卡皮巴拉序列帧大图（启动 loading 页会预加载至 GPU 就绪） */
+export const ROLE_SHEET_URL =
+  'http://tcp690219.hn-bkt.clouddn.com/role.webp'
 
 export interface HomeOptions {
   level?: number
@@ -119,73 +120,91 @@ export function create(
 
   // ════════════════════════════════════════════════════════
   // 1. 顶部状态栏
-  //    左：设置按钮   右：status-bg（金币槽 + 爱心槽）
+  //    左：设置按钮   设置按钮右侧 18px：金币槽 + 爱心槽（各自独立 pill 背景）
+  //    垂直方向与微信胶囊按钮居中对齐
   // ════════════════════════════════════════════════════════
 
-  // status-bg.png (500×124) → 显示 610×152，右端对齐 x=734
-  const STATUS_W = 610
-  const STATUS_X = DESIGN_W - STATUS_W - 10 // x ≈ 124
-  const STATUS_H = Math.round((STATUS_W / 500) * 124) // ≈ 151
-  /** 设计坐标系内：顶边 = 屏上「安全区顶 + 10px」对应到 root 内 y */
-  const STATUS_Y = (safeAreaTopPx + 40) / dr
-  const STATUS_CY = STATUS_Y + STATUS_H / 2
+  // 读取微信胶囊位置，取中心 Y（物理像素）
+  let menuCY: number
+  try {
+    const mb = wx.getMenuButtonBoundingClientRect?.()
+    menuCY = mb?.top > 0 && mb.bottom > mb.top
+      ? (mb.top + mb.bottom) / 2
+      : safeAreaTopPx + 16
+  } catch (_) {
+    menuCY = safeAreaTopPx + 16
+  }
 
-  // 状态栏背景
-  const statusBg = S('assets/scene/home/status-bg.png')
-  statusBg.width = STATUS_W
-  statusBg.height = STATUS_H
-  statusBg.position.set(STATUS_X, STATUS_Y)
-  root.addChild(statusBg)
+  // 物理像素 → root 设计坐标中心 Y
+  // root.position.y = sh - DESIGN_H * dr，所以 designY = (physY - rootTopY) / dr
+  const STATUS_CY = (menuCY - (sh - DESIGN_H * dr)) / dr
 
-  // 设置按钮（setting.png 160×152 → 80×76）
-  // 垂直与状态栏居中对齐
+  const SETTING_SIZE = 84
+  const SLOT_H = 58                          // 槽高
+  const SLOT_W = 200                         // 槽宽
+  const SLOT_GAP = 14                        // 两槽间距
+  const SLOT_R = SLOT_H / 2                  // 圆角 → pill 形
+  const SLOT1_X = 18 + SETTING_SIZE + 18    // = 120
+  const SLOT2_X = SLOT1_X + SLOT_W + SLOT_GAP
+
+  // 设置按钮 & 槽均以 STATUS_CY 为中心
+  const SETTING_Y = STATUS_CY - SETTING_SIZE / 2
+  const SLOT_Y = STATUS_CY - SLOT_H / 2
+
+  // 设置按钮
   const settingBtn = S('assets/button/setting.png')
-  settingBtn.width = 84
-  settingBtn.height = 84
-  settingBtn.position.set(18, Math.round(STATUS_CY - 38))
+  settingBtn.width = SETTING_SIZE
+  settingBtn.height = SETTING_SIZE
+  settingBtn.position.set(18, SETTING_Y)
   click(settingBtn, onSettings)
   root.addChild(settingBtn)
 
-  // 状态栏内部：status-bg 有左右两个槽
-  // 根据图片结构：左槽占 35%，间隔 11%，右槽占 35%，两端各 ~7%
-  const SLOT_W = Math.round(STATUS_W * 0.35) // ≈ 213
-  const SLOT1_X = STATUS_X + Math.round(STATUS_W * 0.07) // 左槽起点
-  const SLOT2_X = SLOT1_X + SLOT_W + Math.round(STATUS_W * 0.11) // 右槽起点
+  // 画 pill 背景（圆角矩形，暖米色填充 + 棕色描边）
+  function slotBg(x: number): PIXI.Graphics {
+    const g = new PIXI.Graphics()
+    g.lineStyle(2.5, 0x9a5e28, 1)
+    g.beginFill(0xfaecd0, 0.92)
+    g.drawRoundedRect(x, SLOT_Y, SLOT_W, SLOT_H, SLOT_R)
+    g.endFill()
+    return g
+  }
+  root.addChild(slotBg(SLOT1_X))
+  root.addChild(slotBg(SLOT2_X))
 
   // 金币槽 — 金币图标 + 数值 + 加号
   const goldIcon = S('assets/icon/gold.png')
-  goldIcon.width = 50
-  goldIcon.height = 50
-  goldIcon.position.set(SLOT1_X + 38, Math.round(STATUS_CY - 24))
+  goldIcon.width = 44
+  goldIcon.height = 44
+  goldIcon.position.set(SLOT1_X + 10, SLOT_Y + 7)
   root.addChild(goldIcon)
 
   const goldText = T(String(coins), 28, 0x5a2800, '700')
   goldText.anchor.set(0, 0.5)
-  goldText.position.set(SLOT1_X + 100, STATUS_CY)
+  goldText.position.set(SLOT1_X + 60, STATUS_CY)
   root.addChild(goldText)
 
   const goldPlus = S('assets/icon/plus.png')
-  goldPlus.width = 44
-  goldPlus.height = 44
-  goldPlus.position.set(SLOT1_X + SLOT_W + 4, Math.round(STATUS_CY - 24))
+  goldPlus.width = 38
+  goldPlus.height = 38
+  goldPlus.position.set(SLOT1_X + SLOT_W - 46, SLOT_Y + 10)
   root.addChild(goldPlus)
 
   // 爱心槽 — 爱心图标 + 数值 + 加号
   const heartIcon = S('assets/icon/love.png')
-  heartIcon.width = 50
-  heartIcon.height = 46
-  heartIcon.position.set(SLOT2_X + 30, Math.round(STATUS_CY - 24))
+  heartIcon.width = 44
+  heartIcon.height = 40
+  heartIcon.position.set(SLOT2_X + 10, SLOT_Y + 9)
   root.addChild(heartIcon)
 
   const heartText = T(`${hearts}/${maxHearts}`, 28, 0x5a2800, '700')
   heartText.anchor.set(0, 0.5)
-  heartText.position.set(SLOT2_X + 100, STATUS_CY)
+  heartText.position.set(SLOT2_X + 60, STATUS_CY)
   root.addChild(heartText)
 
   const heartPlus = S('assets/icon/plus.png')
-  heartPlus.width = 44
-  heartPlus.height = 44
-  heartPlus.position.set(SLOT2_X + SLOT_W + 4, Math.round(STATUS_CY - 24))
+  heartPlus.width = 38
+  heartPlus.height = 38
+  heartPlus.position.set(SLOT2_X + SLOT_W - 46, SLOT_Y + 10)
   root.addChild(heartPlus)
 
   // ════════════════════════════════════════════════════════
@@ -280,30 +299,99 @@ export function create(
 
   // 卡皮巴拉待机动画
   const heroGroup = new PIXI.Container()
-  heroGroup.position.set(DESIGN_W / 2, DESIGN_H / 2 + safeAreaTopPx + 40)
-  const roleFrames: PIXI.Texture[] = []
-  for (let i = 1; i <= 120; i++) {
-    const n = String(i).padStart(3, '0')
-    roleFrames.push(PIXI.Texture.from(`assets/animate/role_ascii/role-${n}.png`))
-  }
-  const roleAnim = new PIXI.AnimatedSprite(roleFrames)
-  roleAnim.anchor.set(0.5, 0.5)
-  const targetW = Math.round(DESIGN_W * 2/ 3)
-  const tex0 = roleFrames[0]
-  const applyRoleScale = () => {
-    const w = (tex0 as any)?.orig?.width || tex0?.width || targetW
-    if (w > 0) {
-      const s = targetW / w
-      roleAnim.scale.set(s)
+  heroGroup.position.set(DESIGN_W / 2, Math.round(DESIGN_H / 2))
+  const jsonUrl = 'assets/animate/spritesheet/spritesheet.json'
+  const base = PIXI.BaseTexture.from(ROLE_SHEET_URL)
+  const build = async () => {
+    const frames: PIXI.Texture[] = []
+    let json: any = null
+    try {
+      const txt = (await readFile({ filePath: jsonUrl, encoding: 'utf-8' })) as string
+      json = JSON.parse(txt)
+    } catch (_) {}
+    if (Array.isArray(json?.frames)) {
+      for (const f of json.frames) {
+        const { x, y, w, h } = f.frame
+        frames.push(new PIXI.Texture(base, new PIXI.Rectangle(x, y, w, h)))
+      }
+    } else if (json?.frames && typeof json.frames === 'object') {
+      const keys = Object.keys(json.frames).sort((a, b) => {
+        const na = Number(a.match(/(\d+)/)?.[1] ?? Number.MAX_SAFE_INTEGER)
+        const nb = Number(b.match(/(\d+)/)?.[1] ?? Number.MAX_SAFE_INTEGER)
+        return na - nb || a.localeCompare(b)
+      })
+      for (const k of keys) {
+        const f = json.frames[k]
+        const { x, y, w, h } = f.frame
+        frames.push(new PIXI.Texture(base, new PIXI.Rectangle(x, y, w, h)))
+      }
     }
+    if (frames.length === 0) {
+      const w = base.width
+      const h = base.height
+      const total = 118
+      const factors = [
+        [11, 11],
+        [11, 10],
+        [10, 11],
+        [10, 12],
+        [12, 10],
+        [8, 15],
+        [15, 8],
+        [6, 20],
+        [20, 6],
+        [5, 24],
+        [24, 5],
+        [4, 30],
+        [30, 4]
+      ]
+      let cols = 10
+      let rows = 12
+      for (const [c, r] of factors) {
+        if (w % c === 0 && h % r === 0) {
+          cols = c
+          rows = r
+          break
+        }
+      }
+      const tileW = Math.floor(w / cols)
+      const tileH = Math.floor(h / rows)
+      for (let i = 0; i < total; i++) {
+        const r = Math.floor(i / cols)
+        const c = i % cols
+        const rect = new PIXI.Rectangle(c * tileW, r * tileH, tileW, tileH)
+        frames.push(new PIXI.Texture(base, rect))
+      }
+    }
+    const roleAnim = new PIXI.AnimatedSprite(frames)
+    roleAnim.anchor.set(0.5, 0.5)
+    const targetW = Math.round((DESIGN_W * 2) / 3)
+    const fw =
+      (Array.isArray(json?.frames)
+        ? (json?.frames?.[0]?.frame?.w as number)
+        : (() => {
+            try {
+              const firstKey = json?.frames ? Object.keys(json.frames).sort((a, b) => {
+                const na = Number(a.match(/(\d+)/)?.[1] ?? Number.MAX_SAFE_INTEGER)
+                const nb = Number(b.match(/(\d+)/)?.[1] ?? Number.MAX_SAFE_INTEGER)
+                return na - nb || a.localeCompare(b)
+              })[0] : undefined
+              return firstKey ? (json.frames[firstKey]?.frame?.w as number) : undefined
+            } catch {
+              return undefined
+            }
+          })()) ||
+      (frames[0] as any)?.orig?.width ||
+      frames[0].width ||
+      1
+    roleAnim.scale.set(targetW / fw)
+    roleAnim.loop = true
+    roleAnim.animationSpeed = 0.4
+    roleAnim.play()
+    heroGroup.addChild(roleAnim)
   }
-  const base = (tex0 as any)?.baseTexture
-  if (base?.valid) applyRoleScale()
-  else base?.once?.('loaded', applyRoleScale)
-  roleAnim.loop = true
-  roleAnim.animationSpeed = 0.4
-  roleAnim.play()
-  heroGroup.addChild(roleAnim)
+  if (base.valid) build()
+  else base.once('loaded', build)
   root.addChild(heroGroup)
   // ════════════════════════════════════════════════════════
   // 6. 开始游戏按钮（底边与菜单栏顶相距 80px，见下方 NAV_TOP）

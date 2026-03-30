@@ -25,7 +25,7 @@ declare namespace GlobalMixins {
   }
 }
 
-type SceneName = 'prelude' | 'game'
+type SceneName = 'home' | 'game'
 
 type DisplayObject = import('pixi.js').DisplayObject
 

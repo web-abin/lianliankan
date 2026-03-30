@@ -6,10 +6,8 @@ export async function run() {
   const core = await import('~/core')
   ;(globalThis as unknown as { __store?: typeof core.store }).__store = core.store
 
-  const { prelude } = await import('~/route')
-  const nav = await import('~/navigator')
+  const { loading } = await import('~/route')
+  await import('~/navigator')
 
-  await prelude.show()
-  prelude.hide()
-  nav.go('home')
+  await loading.show()
 }
