@@ -8,6 +8,5 @@ export async function run() {
 
   const { loading } = await import('~/route')
   await import('~/navigator')
-
   await loading.show()
 }

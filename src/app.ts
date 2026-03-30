@@ -6,6 +6,11 @@ import {action} from 'mobx'
 declare const globalThis: { __store?: { mem: { visible: boolean } } }
 
 function init() {
+  // 在动态 import bootstrap 之前给出即时反馈（PIXI 首屏仍受 defer 约束，会晚一两帧）
+  try {
+    wx.showLoading?.({ title: '加载中', mask: true })
+  } catch (_) {}
+
   wx.onShow(action(() => {
     if (globalThis.__store) globalThis.__store.mem.visible = true
   }))
