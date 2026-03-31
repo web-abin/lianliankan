@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "levels": [
+    {
+      "id": "main-1",
+      "cols": 8,
+      "rows": 14,
+      "kindCount": 10,
+      "gravity": "none"
+    },
+    {
+      "id": "main-2",
+      "cols": 8,
+      "rows": 14,
+      "kindCount": 12,
+      "gravity": "none"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import * as PIXI from 'pixi.js'
 import { stage, loader } from '~/core'
 import * as homeUI from '~/ui/home'
 import { ASSET_URLS } from '~/ui/home'
+import * as navigator from '~/navigator'
 
 let root: PIXI.Container | null = null
 
@@ -23,6 +24,7 @@ function init() {
     coins: 9999,
     hearts: 10,
     maxHearts: 10,
+    onStart: () => navigator.go('game', { level: 1 })
   })
 }
 
