@@ -4,12 +4,11 @@
  *
  * 布局层次（上→下）
  *   顶部状态栏  (贴屏顶，下移安全区 +10px，见 STATUS_Y)
- *   左侧功能入口 圈子好礼 / 添加桌面
+ *   左侧功能入口 圈子好礼 / 添加桌面 / 商店 / 主题
  *   中央标题   卡皮巴拉连连看（水平居中）
- *   右侧功能入口 喊人 / 每日奖励
- *   场景区     挂画 / 植物 / 卡皮巴拉+茶几（组合居逻辑屏正中）/ 每日挑战
+ *   右侧功能入口 喊人 / 每日奖励 / 排行榜 / 每日挑战
+ *   场景区     挂画 / 卡皮巴拉（组合居逻辑屏正中）
  *   开始游戏按钮
- *   底部导航栏  商店 / 主题 / 主页 / 排行榜
  */
 import * as PIXI from 'pixi.js'
 import {
@@ -44,7 +43,6 @@ export const ASSET_URLS = [
   'assets/icon/plus.png',
   'assets/icon/shop.png',
   'assets/icon/theme.png',
-  'assets/icon/home.png',
   'assets/icon/range.png'
 ] as const
 
@@ -66,7 +64,6 @@ export interface HomeOptions {
   onDailyChallenge?: () => void
   onShop?: () => void
   onTheme?: () => void
-  onHome?: () => void
   onRank?: () => void
 }
 
@@ -88,7 +85,6 @@ export function create(
     onDailyChallenge = noop,
     onShop = noop,
     onTheme = noop,
-    onHome = noop,
     onRank = noop
   } = opts
 
@@ -211,26 +207,46 @@ export function create(
   // 2. 左侧功能入口：圈子好礼 / 添加桌面
   // ════════════════════════════════════════════════════════
 
-  // 圈子好礼（circle.png 160×149 → 110×102）
-  const LENTRY_X = 10
+  const baseY = DESIGN_H / 2 - 440
+  const gap = 160
+  /** 左右侧入口统一按图标高度缩放，保证同一行左右图标顶/底对齐 */
+  const ICON_ENTRY_W = 90
+
+  const LENTRY_X = 20
   const circleBtn = sideEntry(root, {
     url: 'assets/button/circle.png',
     label: '圈子好礼',
     x: LENTRY_X,
-    y: safeAreaTopPx + 320,
-    w: 110,
+    y: baseY,
+    w: ICON_ENTRY_W,
     onClick: onGift
   })
   void circleBtn
 
-  // 添加桌面（desk.png 160×136 → 110×94）
   sideEntry(root, {
     url: 'assets/button/desk.png',
     label: '添加桌面',
     x: LENTRY_X,
-    y: safeAreaTopPx + 480,
-    w: 110,
+    y: baseY + gap,
+    w: ICON_ENTRY_W,
     onClick: onDesk
+  })
+
+  sideEntry(root, {
+    url: 'assets/icon/shop.png',
+    label: '商店',
+    x: LENTRY_X,
+    y: baseY + 2 * gap,
+    w: ICON_ENTRY_W,
+    onClick: onShop
+  })
+  sideEntry(root, {
+    url: 'assets/icon/theme.png',
+    label: '主题',
+    x: LENTRY_X,
+    y: baseY + 3 * gap,
+    w: ICON_ENTRY_W,  
+    onClick: onTheme
   })
 
   // ════════════════════════════════════════════════════════
@@ -243,33 +259,53 @@ export function create(
   titleSpr.width = titleW
   titleSpr.height = Math.round((titleW / 700) * 376)
   titleSpr.anchor.set(0.5, 0)
-  titleSpr.position.set(DESIGN_W / 2, safeAreaTopPx + 320)
+  titleSpr.position.set(DESIGN_W / 2, baseY)
   root.addChild(titleSpr)
 
   // ════════════════════════════════════════════════════════
   // 4. 右侧功能入口：喊人 / 每日奖励
   // ════════════════════════════════════════════════════════
 
-  const RENTRY_X = DESIGN_W - 120
+  /** 右侧图标右缘对齐到设计稿右缘内边距（宽度随资源变化） */
+  const RENTRY_ICON_RIGHT = DESIGN_W - LENTRY_X
 
-  // 喊人（invite.png 160×139 → 100×87）
   sideEntry(root, {
     url: 'assets/button/invite.png',
     label: '喊人',
-    x: RENTRY_X,
-    y: safeAreaTopPx + 320,
-    w: 100,
+    x: RENTRY_ICON_RIGHT,
+    y: baseY,
+    w: ICON_ENTRY_W,
+    anchor: 'right',
     onClick: onShout
   })
 
-  // 每日奖励（daily.png 160×152 → 100×95）
   sideEntry(root, {
     url: 'assets/button/daily.png',
     label: '每日奖励',
-    x: RENTRY_X,
-    y: safeAreaTopPx + 480,
-    w: 100,
+    x: RENTRY_ICON_RIGHT,
+    y: baseY + gap,
+    w: ICON_ENTRY_W,  
+    anchor: 'right',
     onClick: onReward
+  })
+
+  sideEntry(root, {
+    url: 'assets/icon/range.png',
+    label: '排行榜',
+    x: RENTRY_ICON_RIGHT,
+    y: baseY + 2 * gap,
+    w: ICON_ENTRY_W,
+    anchor: 'right',
+    onClick: onRank
+  })
+  sideEntry(root, {
+    url: 'assets/button/challenge.png',
+    label: '每日挑战',
+    x: RENTRY_ICON_RIGHT,
+    y: baseY + 3 * gap,
+    w: ICON_ENTRY_W,  
+    anchor: 'right',
+    onClick: onDailyChallenge
   })
 
   // ════════════════════════════════════════════════════════
@@ -277,11 +313,11 @@ export function create(
   // ════════════════════════════════════════════════════════
 
   // 挂画（painting.png 200×262 → 宽 82）
-  const paintingSpr = S('assets/scene/home/painting.png')
-  paintingSpr.width = 82
-  paintingSpr.height = Math.round((82 / 200) * 262) // ≈ 107
-  paintingSpr.position.set(130, (DESIGN_H * 2) / 5)
-  root.addChild(paintingSpr)
+  // const paintingSpr = S('assets/scene/home/painting.png')
+  // paintingSpr.width = 82
+  // paintingSpr.height = Math.round((82 / 200) * 262) // ≈ 107
+  // paintingSpr.position.set(130, (DESIGN_H * 2) / 5)
+  // root.addChild(paintingSpr)
 
   // 花盆1 左侧小盆（flower2.png 120×150 → 宽 90）
   // const flower2Spr = S('assets/scene/home/flower2.png')
@@ -394,21 +430,17 @@ export function create(
   else base.once('loaded', build)
   root.addChild(heroGroup)
   // ════════════════════════════════════════════════════════
-  // 6. 开始游戏按钮（底边与菜单栏顶相距 80px，见下方 NAV_TOP）
+  // 6. 开始游戏按钮（距设计稿底边留白，与原先底栏+间距等效）
   // ════════════════════════════════════════════════════════
 
-  // 底部：木板条紧贴菜单栏上方，菜单栏铺满至设计稿底边 y=DESIGN_H
-  const FOOTER_H = Math.round((DESIGN_W / 600) * 75)
-  const NAV_H = 140
-  const NAV_TOP = DESIGN_H - NAV_H
   const START_BTN_H = Math.round((545 / 600) * 184) // start.png 高度 ≈ 167
+  const START_ABOVE_DESIGN_BOTTOM = 220 // 原底栏 140 + 与底栏间距 80
 
   const startGroup = new PIXI.Container()
   click(startGroup, onStart)
-  // 按钮 anchor 0.5,0.5 → 底边 y = centerY + START_BTN_H/2；与菜单栏顶间隔 80
   startGroup.position.set(
     DESIGN_W / 2,
-    NAV_TOP - 80 - Math.round(START_BTN_H / 2)
+    DESIGN_H - START_ABOVE_DESIGN_BOTTOM - Math.round(START_BTN_H / 2)
   )
   root.addChild(startGroup)
 
@@ -457,98 +489,6 @@ export function create(
   wrapper.on('added', onWrapAdded)
   wrapper.on('removed', onWrapRemoved)
 
-  // 每日挑战按钮（challenge.png 180×205 → 宽 112）
-  const challengeGroup = new PIXI.Container()
-  click(challengeGroup, onDailyChallenge)
-  challengeGroup.position.set(DESIGN_W - 120, DESIGN_H - 540)
-  root.addChild(challengeGroup)
-
-  const challengeSpr = S('assets/button/challenge.png')
-  challengeSpr.width = 112
-  challengeSpr.height = Math.round((112 / 180) * 205) // ≈ 128
-  challengeGroup.addChild(challengeSpr)
-
-  const challengeLabel = T('每日挑战', 22, 0x5a2d0c, '700')
-  challengeLabel.anchor.set(0.5, 0)
-  challengeLabel.position.set(36, 132)
-  challengeGroup.addChild(challengeLabel)
-
-  // ════════════════════════════════════════════════════════
-  // 7. 底部导航栏（木板为最底层背景，半透明色叠在木板上，图标与文字最上层）
-  // ════════════════════════════════════════════════════════
-
-  // 4 个导航项
-  const NAV_ITEMS = [
-    {
-      url: 'assets/icon/shop.png',
-      label: '商店',
-      active: false,
-      onClick: onShop
-    },
-    {
-      url: 'assets/icon/theme.png',
-      label: '主题',
-      active: false,
-      onClick: onTheme
-    },
-    {
-      url: 'assets/icon/home.png',
-      label: '主页',
-      active: true,
-      onClick: onHome
-    },
-    {
-      url: 'assets/icon/range.png',
-      label: '排行榜',
-      active: false,
-      onClick: onRank
-    }
-  ]
-  const CELL_W = DESIGN_W / NAV_ITEMS.length // 187.5
-
-  NAV_ITEMS.forEach((item, i) => {
-    const cx = Math.round(CELL_W * i + CELL_W / 2)
-    const cell = new PIXI.Container()
-    click(cell, item.onClick)
-    cell.position.set(cx, NAV_TOP + 14)
-    root.addChild(cell)
-
-    const CELL_INSET_X = 12
-    const CELL_INSET_Y = 10
-    const cellW = Math.max(80, Math.round(CELL_W - CELL_INSET_X * 2))
-    const cellH = Math.max(88, Math.round(NAV_H - CELL_INSET_Y * 2))
-    const R = 18
-
-    const COLOR_NORMAL = 0xd78f57
-    const COLOR_ACTIVE = 0xf0b45c
-    const bg = new PIXI.Graphics()
-    bg.lineStyle(4, 0x000000, 1)
-    bg.beginFill(item.active ? COLOR_ACTIVE : COLOR_NORMAL, 1)
-    bg.drawRoundedRect(-cellW / 2, 0, cellW, cellH, R)
-    bg.endFill()
-    cell.addChild(bg)
-
-    const iconSpr = S(item.url)
-    iconSpr.width = 72
-    iconSpr.height = Math.round((72 / 80) * 72)
-    iconSpr.anchor.set(0.5, 0)
-    iconSpr.position.set(0, 10)
-    cell.addChild(iconSpr)
-    addSpriteOutline(iconSpr, 2)
-
-    const lbl = new PIXI.Text(item.label, {
-      fontFamily: 'sans-serif',
-      fontSize: 24,
-      fontWeight: '900',
-      fill: 0xffffff,
-      stroke: 0x000000,
-      strokeThickness: 6
-    })
-    lbl.anchor.set(0.5, 0)
-    lbl.position.set(0, iconSpr.y + iconSpr.height + 8)
-    cell.addChild(lbl)
-  })
-
   return wrapper
 }
 
@@ -586,7 +526,7 @@ function click<T extends PIXI.DisplayObject>(obj: T, fn: () => void): T {
   return obj
 }
 
-/** 侧边功能入口（图标 + 文字标签） */
+/** 侧边功能入口（图标 + 文字标签）；`w`/`h` 二选一；`anchor` 为 right 时 `x` 为图标右缘 */
 function sideEntry(
   root: PIXI.Container,
   opts: {
@@ -594,54 +534,36 @@ function sideEntry(
     label: string
     x: number
     y: number
-    w: number
     onClick: () => void
-  }
+    anchor?: 'left' | 'right'
+  } & ({ w: number; h?: never } | { w?: never; h: number })
 ) {
-  const { url, label, x, y, w, onClick } = opts
+  const { url, label, x, y, onClick } = opts
+  const anchor = opts.anchor ?? 'left'
+  const byH = 'h' in opts && opts.h != null
+  const dim = byH ? opts.h! : opts.w!
+
+  const iconSpr = S(url)
+  const texW = iconSpr.texture.width || dim
+  const texH = iconSpr.texture.height || dim
+  if (byH) {
+    iconSpr.height = dim
+    iconSpr.width = Math.round((dim / texH) * texW)
+  } else {
+    iconSpr.width = dim
+    iconSpr.height = Math.round((dim / texW) * texH)
+  }
 
   const group = new PIXI.Container()
   click(group, onClick)
-  group.position.set(x, y)
+  group.position.set(anchor === 'right' ? x - iconSpr.width : x, y)
   root.addChild(group)
-
-  const iconSpr = S(url)
-  // 等比缩放到目标宽度（纹理已预加载，width 有效）
-  const texW = iconSpr.texture.width || w
-  const texH = iconSpr.texture.height || w
-  iconSpr.width = w
-  iconSpr.height = Math.round((w / texW) * texH)
   group.addChild(iconSpr)
 
   const lbl = T(label, 22, 0x5a2d0c, '700')
   lbl.anchor.set(0.5, 0)
-  lbl.position.set(w / 2, iconSpr.height + 4)
+  lbl.position.set(iconSpr.width / 2, iconSpr.height + 4)
   group.addChild(lbl)
 
   return group
-}
-
-function addSpriteOutline(sprite: PIXI.Sprite, thickness = 2) {
-  const p = sprite.parent
-  if (!p) return
-  const idx = p.getChildIndex(sprite)
-  const offsets = [
-    [-thickness, 0],
-    [thickness, 0],
-    [0, -thickness],
-    [0, thickness],
-    [-thickness, -thickness],
-    [-thickness, thickness],
-    [thickness, -thickness],
-    [thickness, thickness]
-  ]
-  for (const [dx, dy] of offsets) {
-    const s = new PIXI.Sprite(sprite.texture)
-    s.tint = 0x000000
-    s.anchor.set(sprite.anchor.x, sprite.anchor.y)
-    s.position.set(sprite.x + dx, sprite.y + dy)
-    s.width = sprite.width
-    s.height = sprite.height
-    p.addChildAt(s, idx)
-  }
 }
