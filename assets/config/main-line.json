@@ -3,16 +3,16 @@
   "levels": [
     {
       "id": "main-1",
-      "cols": 8,
-      "rows": 14,
-      "kindCount": 10,
+      "cols": 6,
+      "rows": 10,
+      "kindCount": 6,
       "gravity": "none"
     },
     {
       "id": "main-2",
-      "cols": 8,
-      "rows": 14,
-      "kindCount": 12,
+      "cols": 6,
+      "rows": 10,
+      "kindCount": 6,
       "gravity": "none"
     }
   ]

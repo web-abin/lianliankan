@@ -104,41 +104,6 @@
       "trimmed": false,
       "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
       "sourceSize": { "w": 150, "h": 149 }
-    },
-    "food-16": {
-      "frame": { "x": 0, "y": 447, "w": 150, "h": 149 },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
-      "sourceSize": { "w": 150, "h": 149 }
-    },
-    "food-17": {
-      "frame": { "x": 150, "y": 447, "w": 150, "h": 149 },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
-      "sourceSize": { "w": 150, "h": 149 }
-    },
-    "food-18": {
-      "frame": { "x": 300, "y": 447, "w": 150, "h": 149 },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
-      "sourceSize": { "w": 150, "h": 149 }
-    },
-    "food-19": {
-      "frame": { "x": 450, "y": 447, "w": 150, "h": 149 },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
-      "sourceSize": { "w": 150, "h": 149 }
-    },
-    "food-20": {
-      "frame": { "x": 600, "y": 447, "w": 150, "h": 149 },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
-      "sourceSize": { "w": 150, "h": 149 }
     }
   },
   "meta": {
@@ -146,7 +111,7 @@
     "version": "1.0",
     "image": "food.png",
     "format": "RGBA8888",
-    "size": { "w": 750, "h": 596 },
+    "size": { "w": 750, "h": 452 },
     "scale": "1"
   }
 }

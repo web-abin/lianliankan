@@ -22,10 +22,20 @@ export function back() {
   current.show(currentOpts)
 }
 
-export function go(sn: 'game', opts?: {level: number, from?: 'invite'}): void
+export function go(
+  sn: 'game',
+  opts?: { level?: number; mode?: 'main' | 'daily'; from?: 'invite' }
+): void
 export function go(sn: 'home'): void
 export function go(sn: SceneName, opts?: any) {
-  if (sn === currentName) return
+  if (sn === currentName) {
+    if (sn === 'game') {
+      current.hide()
+      currentOpts = opts
+      current.show(opts)
+    }
+    return
+  }
 
   if (current) {
     current.hide()
@@ -39,7 +49,12 @@ export function go(sn: SceneName, opts?: any) {
 }
 
 export function redirect(sn: SceneName, opts?: any) {
-  if (sn === currentName) return
+  if (sn === currentName) {
+    current?.hide()
+    currentOpts = opts
+    current.show(opts)
+    return
+  }
   current?.hide()
 
   current = routes[sn]

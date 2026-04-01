@@ -1,7 +1,7 @@
 import type { MainLineLevelEntry, MainLineManifest } from '~/constants/link-level-types'
 import { readFile } from '~/util'
 
-const MANIFEST_URL = 'assets/levels/main-line.json'
+const MANIFEST_URL = 'assets/config/main-line.json'
 
 let cachedManifest: MainLineManifest | null = null
 
@@ -23,4 +23,14 @@ export function resolveMainLineLevel(
   if (L === 0) throw new Error('main-line.json: levels 为空')
   const idx = Math.min(Math.max(levelNumber, 1), L) - 1
   return manifest.levels[idx]
+}
+
+/** 主线 n≥1 与 manifest 的确定性布局种子（n>L 时换种子不换难度参数） */
+export function layoutSeedForMainLevel(
+  levelNumber: number,
+  manifest: MainLineManifest
+): number {
+  const L = manifest.levels.length
+  const n = Math.max(1, levelNumber)
+  return ((n * 1103515245 + manifest.version * 10007 + L * 17) >>> 0) ^ 0xcbf29ce484222325
 }

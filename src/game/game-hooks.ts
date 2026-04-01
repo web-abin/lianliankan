@@ -1,6 +1,8 @@
 /**
- * 局内与产品层对接的占位：主题图集、成就进度（OpenSpec llk-achievements-themes / gameplay）
+ * 主题图集、成就进度（OpenSpec llk-achievements-themes）
  */
+import { action } from 'mobx'
+import { llk, persistLlkSave } from '~/game/llk-save'
 
 export type GameThemeId = 'food' | 'fruit' | 'kitchen' | 'forest'
 
@@ -9,9 +11,8 @@ export interface ThemeAtlasPaths {
   jsonUrl: string
 }
 
-/** 当前仅美食图集在首包；其余主题可改为分包 URL */
+/** 首包仅美食图集；其余主题解锁后同路径直至分包就绪 */
 export function resolveThemeAtlasPaths(themeId: GameThemeId): ThemeAtlasPaths {
-  // 首包仅含美食图集；水果季等解锁后若有独立分包再改路径
   switch (themeId) {
     case 'fruit':
     case 'kitchen':
@@ -26,13 +27,9 @@ export function resolveThemeAtlasPaths(themeId: GameThemeId): ThemeAtlasPaths {
 }
 
 export interface AchievementSnapshot {
-  /** 本局新增消除对数（由局内上报，持久化层再累加） */
   deltaPairs?: number
-  /** 累计消除对数（若 store 已汇总可直接传） */
   totalPairsCleared?: number
-  /** 普通关累计通关数 */
   mainLevelsCleared?: number
-  /** 每日挑战成功次数 */
   dailyChallengeClears?: number
 }
 
@@ -41,17 +38,42 @@ export type AchievementRewardKind = 'theme' | 'coins' | 'sound'
 export interface AchievementDef {
   id: string
   rewardKind: AchievementRewardKind
-  /** 主题解锁时与 GameThemeId 对应 */
   themeId?: GameThemeId
 }
 
-/** 占位：上报消除一对（可写入 store / 云端） */
-export function notifyPairCleared(snapshot: Partial<AchievementSnapshot> = {}): void {
-  void snapshot
-  // TODO: store.mem.achievements + 云端同步
+const THRESHOLD_FRUIT = 15
+const THRESHOLD_KITCHEN = 5
+const THRESHOLD_FOREST = 200
+
+function ensureUnlocked(theme: GameThemeId) {
+  if (llk.unlockedThemes.includes(theme)) return
+  llk.unlockedThemes.push(theme)
 }
 
-/** 占位：关卡通关（累计通关数等） */
+/** 检查主题解锁成就 */
+export const checkThemeAchievements = action(function checkThemeAchievements() {
+  if (llk.mainLevelsCleared >= THRESHOLD_FRUIT) ensureUnlocked('fruit')
+  if (llk.dailyChallengeClears >= THRESHOLD_KITCHEN) ensureUnlocked('kitchen')
+  if (llk.pairClearsTotal >= THRESHOLD_FOREST) ensureUnlocked('forest')
+  persistLlkSave()
+})
+
+export function notifyPairCleared(snapshot: Partial<AchievementSnapshot> = {}): void {
+  const d = snapshot.deltaPairs ?? 0
+  if (d > 0) {
+    llk.pairClearsTotal += d
+    checkThemeAchievements()
+  }
+}
+
+/** 由路由在写入 mainLevelsCleared 等后调用，仅刷新主题解锁判定 */
 export function notifyMainLevelComplete(_levelNumber: number): void {
-  // TODO: store + 成就服务
+  checkThemeAchievements()
+  persistLlkSave()
+}
+
+export function notifyDailyChallengeSuccess(): void {
+  llk.dailyChallengeClears += 1
+  checkThemeAchievements()
+  persistLlkSave()
 }

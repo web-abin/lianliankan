@@ -11,6 +11,7 @@ const cache = new Map<string, Record<string, PIXI.Texture>>()
 
 /**
  * 按主题加载图集纹理表（帧名 food-01 …，与 assets/spritesheet/food.json 一致）
+ * 非首包主题：可先 wx.loadSubpackage({ name: '...' }) 再改 resolveThemeAtlasPaths 指向分包路径
  */
 export async function loadThemeTextureMap(
   themeId: GameThemeId

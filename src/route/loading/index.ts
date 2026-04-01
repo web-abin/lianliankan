@@ -1,6 +1,7 @@
 import * as PIXI from 'pixi.js'
 import { stage, loader, screen, tick } from '~/core'
 import { ASSET_URLS, ROLE_SHEET_URL } from '~/ui/home'
+import { GAME_PRELOAD_URLS } from '~/ui/game-screen'
 import * as navigator from '~/navigator'
 
 let root: PIXI.Container | null = null
@@ -136,7 +137,11 @@ export async function show() {
     wx.hideLoading?.()
   } catch (_) {}
 
-  const allUrls = [...(ASSET_URLS as unknown as string[]), ROLE_SHEET_URL]
+  const allUrls = [
+    ...(ASSET_URLS as unknown as string[]),
+    ROLE_SHEET_URL,
+    ...(GAME_PRELOAD_URLS as unknown as string[])
+  ]
   const toLoad = allUrls.filter(url => !loader.resources[url])
 
   const perFile = new Map<string, number>()

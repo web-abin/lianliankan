@@ -6,6 +6,9 @@ export async function run() {
   const core = await import('~/core')
   ;(globalThis as unknown as { __store?: typeof core.store }).__store = core.store
 
+  const { loadLlkSave } = await import('~/game/llk-save')
+  loadLlkSave()
+
   const { loading } = await import('~/route')
   await import('~/navigator')
   await loading.show()
