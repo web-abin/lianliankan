@@ -1,9 +1,27 @@
 /**
- * 全局弹窗壳：异形底板 + bounce 入场（OpenSpec llk-wechat-shell）
+ * 全局弹窗壳：卡皮巴拉 IP 风格 — 奶油白圆角卡片 + bounce 入场
+ * 样式遵循设计图2.md 全局设计语言：
+ *   - 背景遮罩：深棕 #3E2010 @ 50%
+ *   - 面板：奶油白 #FFF5E8，radius 32px，深棕 4px 描边
+ *   - 标题：深棕粗体 30px
+ *   - 正文：深棕 26px
+ *   - 主按钮：橙色果冻感（顶部高光 + 底部投影）
+ *   - 次按钮：灰色圆角
+ *   - 右上角关闭按钮：深棕圆形 ×
  */
 import * as PIXI from 'pixi.js'
-import { windowWidth, windowHeight } from '~/core'
-import { FONT_FAMILY } from '~/constants/design-tokens'
+import { windowWidth, windowHeight, DESIGN_REF_W, designLayoutH } from '~/core'
+
+// 设计色板
+const C_OUTLINE  = 0x3e2010  // 深棕描边
+const C_PANEL    = 0xfff5e8  // 奶油白面板
+const C_OVERLAY  = 0x3e2010  // 遮罩底色
+const C_ORANGE   = 0xff8c42  // 主按钮橙色
+const C_ORANGE_H = 0xffb347  // 高光橙黄
+const C_ORANGE_S = 0xc45e1a  // 阴影深橙
+const C_GRAY_BTN = 0xb0a090  // 次按钮灰
+const C_TEXT     = 0x3e2010  // 主文字深棕
+const C_CLOSE_BG = 0x3e2010  // 关闭按钮底色
 
 export interface ModalShellOptions {
   title?: string
@@ -27,80 +45,144 @@ export function openModalShell(
   const wrap = new PIXI.Container()
   ;(wrap as PIXI.DisplayObject & { interactive?: boolean }).interactive = true
 
+  // 半透明深棕遮罩
   const dim = new PIXI.Graphics()
-  dim.beginFill(0x000000, 0.5)
+  dim.beginFill(C_OVERLAY, 0.5)
   dim.drawRect(0, 0, sw, sh)
   dim.endFill()
+  ;(dim as PIXI.DisplayObject & { interactive?: boolean }).interactive = true
   dim.on('pointerdown', () => {})
   wrap.addChild(dim)
 
+  // 弹窗主面板容器（居中定位，以设计坐标绘制后再 scale）
   const root = new PIXI.Container()
-  root.scale.set(0.88)
-  root.position.set(sw / 2, sh / 2)
+  root.position.set(sw / 2, sh * 0.46)
   wrap.addChild(root)
 
+  // 面板尺寸（设计坐标）
+  const panelW = 580
+  const panelH = hasTwoBtns(opts) ? 380 : 340
+  const panelR = 32
+  const px = -panelW / 2
+  const py = -panelH / 2
+
+  // 底部投影（深棕，向右下偏移 4px）
+  const shadow = new PIXI.Graphics()
+  shadow.beginFill(C_OUTLINE, 0.3)
+  shadow.drawRoundedRect(px + 4, py + 6, panelW, panelH, panelR)
+  shadow.endFill()
+  root.addChild(shadow)
+
+  // 面板主体
   const panel = new PIXI.Graphics()
-  panel.beginFill(0xfff5e8, 0.98)
-  panel.lineStyle(3, 0xc48a4a, 1)
-  panel.moveTo(-20, 40)
-  panel.lineTo(520, 20)
-  panel.lineTo(540, 280)
-  panel.lineTo(0, 300)
-  panel.closePath()
+  panel.lineStyle(4, C_OUTLINE, 1)
+  panel.beginFill(C_PANEL, 0.98)
+  panel.drawRoundedRect(px, py, panelW, panelH, panelR)
   panel.endFill()
+  // 顶部弧形高光条（模拟顶光质感）
+  panel.lineStyle(0)
+  panel.beginFill(0xffffff, 0.18)
+  panel.drawRoundedRect(px + 12, py + 6, panelW - 24, panelH * 0.28, panelR - 4)
+  panel.endFill()
+  ;(panel as PIXI.DisplayObject & { interactive?: boolean }).interactive = true
   root.addChild(panel)
 
-  const title = new PIXI.Text(opts.title ?? '', {
-    fontFamily: FONT_FAMILY,
-    fontSize: 30,
-    fill: 0x5c2d0a,
-    fontWeight: '800'
-  })
-  title.position.set(24, 36)
-  root.addChild(title)
+  // 标题
+  if (opts.title) {
+    const titleT = new PIXI.Text(opts.title, {
+      fontFamily: 'sans-serif',
+      fontSize: 34,
+      fill: C_TEXT,
+      fontWeight: '900'
+    })
+    titleT.anchor.set(0.5, 0)
+    titleT.position.set(0, py + 32)
+    root.addChild(titleT)
 
-  const body = new PIXI.Text(opts.body, {
-    fontFamily: FONT_FAMILY,
+    // 标题下分割线
+    const divider = new PIXI.Graphics()
+    divider.lineStyle(1.5, C_OUTLINE, 0.2)
+    divider.moveTo(px + 40, py + 76)
+    divider.lineTo(px + panelW - 40, py + 76)
+    root.addChild(divider)
+  }
+
+  // 正文（支持换行）
+  const bodyTop = opts.title ? py + 88 : py + 32
+  const bodyT = new PIXI.Text(opts.body, {
+    fontFamily: 'sans-serif',
     fontSize: 26,
-    fill: 0x4a3020,
+    fill: C_TEXT,
     fontWeight: '600',
     wordWrap: true,
-    wordWrapWidth: 480,
-    lineHeight: 34
+    wordWrapWidth: panelW - 64,
+    lineHeight: 38,
+    align: 'center'
   })
-  body.position.set(24, 90)
-  root.addChild(body)
+  bodyT.anchor.set(0.5, 0)
+  bodyT.position.set(0, bodyTop)
+  root.addChild(bodyT)
 
-  const btnY = 220
-  const cx = opts.cancelText ? 150 : 260
+  // 按钮区
+  const btnY = py + panelH - 76
   if (opts.cancelText) {
-    const b1 = pillBtn(opts.cancelText, 0x8a8a8a)
-    b1.position.set(80, btnY)
-    b1.on('pointerdown', () => {
-      opts.onCancel?.()
-      close()
-    })
+    const b1 = jellyBtn(opts.cancelText, C_GRAY_BTN, 0x8a7a6a, 0x6a5a4a, 220, 56)
+    b1.position.set(-120, btnY)
+    b1.on('pointerdown', () => { opts.onCancel?.(); close() })
     root.addChild(b1)
+    const b2 = jellyBtn(opts.confirmText ?? '确定', C_ORANGE, C_ORANGE_H, C_ORANGE_S, 220, 56)
+    b2.position.set(120, btnY)
+    b2.on('pointerdown', () => { opts.onConfirm?.(); close() })
+    root.addChild(b2)
+  } else {
+    const b2 = jellyBtn(opts.confirmText ?? '确定', C_ORANGE, C_ORANGE_H, C_ORANGE_S, 300, 56)
+    b2.position.set(0, btnY)
+    b2.on('pointerdown', () => { opts.onConfirm?.(); close() })
+    root.addChild(b2)
   }
-  const b2 = pillBtn(opts.confirmText ?? '确定', 0xd4783a)
-  b2.position.set(cx + 120, btnY)
-  b2.on('pointerdown', () => {
-    opts.onConfirm?.()
-    close()
+
+  // 右上角关闭按钮（圆形深棕 × ）
+  const closeR = 22
+  const closeG = new PIXI.Graphics()
+  closeG.beginFill(C_CLOSE_BG, 1)
+  closeG.drawCircle(0, 0, closeR)
+  closeG.endFill()
+  // 高光弧
+  closeG.beginFill(0xffffff, 0.2)
+  closeG.drawEllipse(0, -closeR * 0.3, closeR * 0.55, closeR * 0.35)
+  closeG.endFill()
+  ;(closeG as PIXI.DisplayObject & { interactive?: boolean }).interactive = true
+  ;(closeG as any).buttonMode = true
+  closeG.on('pointerdown', close)
+  closeG.position.set(px + panelW - closeR + 4, py + closeR - 4)
+  root.addChild(closeG)
+
+  const closeX = new PIXI.Text('✕', {
+    fontFamily: 'sans-serif',
+    fontSize: 22,
+    fill: 0xffffff,
+    fontWeight: '700'
   })
-  root.addChild(b2)
+  closeX.anchor.set(0.5, 0.5)
+  closeG.addChild(closeX)
+
+  // scale 统一应用 dr，并在内容之上设置
+  root.scale.set(dr)
 
   parent.addChild(wrap)
 
-  let phase = 0
-  const bounce = () => {
-    phase += 0.18
-    const s = 0.88 + 0.06 * Math.sin(phase)
-    root.scale.set(Math.min(1, s))
-    if (phase < Math.PI) requestAnimationFrame(bounce)
-    else root.scale.set(1)
+  // bounce 入场动画（scale 0.6 → 弹性 1.05 → 1.0，约 300ms）
+  root.scale.set(dr * 0.6)
+  const bounceStart = performance.now()
+  const bounceDur = 300
+  const bounceStep = () => {
+    const u = Math.min(1, (performance.now() - bounceStart) / bounceDur)
+    const eased = bounceEase(u)
+    root.scale.set(dr * eased)
+    if (u < 1) requestAnimationFrame(bounceStep)
+    else root.scale.set(dr)
   }
-  requestAnimationFrame(bounce)
+  requestAnimationFrame(bounceStep)
 
   function close() {
     parent.removeChild(wrap)
@@ -110,22 +192,72 @@ export function openModalShell(
   return wrap
 }
 
-function pillBtn(label: string, color: number): PIXI.Container {
+// ═══════════════════════════════════════════════
+// 辅助函数
+// ═══════════════════════════════════════════════
+
+function hasTwoBtns(opts: ModalShellOptions): boolean {
+  return !!(opts.cancelText)
+}
+
+/**
+ * 果冻感按钮：主体色 + 顶部高光弧 + 底部投影
+ * anchor 在中心
+ */
+function jellyBtn(
+  label: string,
+  mainColor: number,
+  highlightColor: number,
+  shadowColor: number,
+  w: number,
+  h: number
+): PIXI.Container {
   const c = new PIXI.Container()
   ;(c as PIXI.DisplayObject & { interactive?: boolean }).interactive = true
+  ;(c as any).buttonMode = true
+
   const g = new PIXI.Graphics()
-  g.beginFill(color, 0.95)
-  g.drawRoundedRect(0, 0, 200, 56, 28)
+  const r = h / 2  // radius = pill
+
+  // 底部投影
+  g.beginFill(shadowColor, 0.7)
+  g.drawRoundedRect(-w / 2 + 2, -h / 2 + 4, w, h, r)
   g.endFill()
+
+  // 主体
+  g.beginFill(mainColor, 1)
+  g.drawRoundedRect(-w / 2, -h / 2, w, h, r)
+  g.endFill()
+
+  // 顶部弧形高光
+  g.beginFill(0xffffff, 0.28)
+  g.drawRoundedRect(-w / 2 + 8, -h / 2 + 3, w - 16, h * 0.42, r - 2)
+  g.endFill()
+
   c.addChild(g)
+
   const t = new PIXI.Text(label, {
-    fontFamily: FONT_FAMILY,
-    fontSize: 26,
+    fontFamily: 'sans-serif',
+    fontSize: 28,
     fill: 0xffffff,
-    fontWeight: '700'
+    fontWeight: '800'
   })
   t.anchor.set(0.5, 0.5)
-  t.position.set(100, 28)
   c.addChild(t)
+
+  // 点击下压反馈
+  c.on('pointerdown', () => { c.scale.set(0.95); c.y += 2 })
+  c.on('pointerup', () => { c.scale.set(1); c.y -= 2 })
+  c.on('pointerupoutside', () => { c.scale.set(1); c.y -= 2 })
+
   return c
+}
+
+/** bounce 缓动：0→1 期间先冲到 1.08 再回落 1.0 */
+function bounceEase(u: number): number {
+  if (u < 0.7) {
+    return (u / 0.7) * 1.08
+  }
+  const t = (u - 0.7) / 0.3
+  return 1.08 - (1.08 - 1.0) * t
 }
