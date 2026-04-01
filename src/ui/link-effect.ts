@@ -4,6 +4,7 @@
  */
 import * as PIXI from 'pixi.js'
 import { FONT_FAMILY } from '~/constants/design-tokens'
+import { playEliminationBurstSound } from '~/game/llk-sound'
 
 /** 消除飘字：随机其一 */
 const ELIMINATION_PRAISE_PHRASES = [
@@ -277,8 +278,10 @@ export function playEliminationEffect(opts: EliminationEffectOptions): void {
     )
   }
 
-  // 光束触达后：爆裂环 + 星粒（重力）+ 「好！」（与两砖消除节奏对齐）
+  // 光束触达后：爆裂环 + 星粒（重力）+ 飘字（与两砖消除节奏对齐）
   setTimeout(() => {
+    playEliminationBurstSound()
+
     const spawnBurstRing = (pos: Point2D) => {
       const ring = new PIXI.Graphics()
       ring.position.set(pos.x, pos.y)
@@ -308,11 +311,12 @@ export function playEliminationEffect(opts: EliminationEffectOptions): void {
 
     for (const pos of [posA, posB]) spawnBurstRing(pos)
 
-    const nStars = 20 + Math.floor(rng() * 21)
+    const nStars = 40 + Math.floor(rng() * 21)
     const starsA = Math.ceil(nStars / 2)
     const starsB = nStars - starsA
     const gAccel = 520
 
+    // 粒子
     const spawnStarBurst = (pos: Point2D, starCount: number) => {
       for (let i = 0; i < starCount; i++) {
         const spr = new PIXI.Sprite(starTex)

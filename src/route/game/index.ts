@@ -24,6 +24,7 @@ import {
 import { buildDailyLevelConfig, todayKey } from '~/game/daily-challenge'
 import { openModalShell } from '~/ui/modal-shell'
 import { reportProgressToCloud } from '~/wx/supabase-sync'
+import { startGameBgm, stopGameBgm } from '~/game/llk-sound'
 
 let root: PIXI.Container | null = null
 
@@ -203,9 +204,11 @@ export async function show(opts?: {
   })
 
   stage.addChild(root)
+  startGameBgm()
 }
 
 export function hide() {
+  stopGameBgm()
   if (root && stage.children.includes(root)) {
     stage.removeChild(root)
     root.destroy({ children: true })

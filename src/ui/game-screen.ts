@@ -16,7 +16,11 @@ import type { GameThemeId } from '~/game/game-hooks'
 import { notifyPairCleared } from '~/game/game-hooks'
 import { applyGravity, type GravityTile } from '~/game/link-gravity'
 import { findHintPair, findPath } from '~/game/link-path'
-import { playSelectSound, playSelectThenClear } from '~/game/llk-sound'
+import {
+  playSelectSound,
+  playSelectThenClear,
+  playChestCollectSound
+} from '~/game/llk-sound'
 import { playEliminationEffect } from '~/ui/link-effect'
 
 export const GAME_PRELOAD_URLS = [
@@ -32,6 +36,7 @@ export const GAME_PRELOAD_URLS = [
   'assets/button/tool3.png',
   'assets/button/tool4.png',
   'assets/spritesheet/food.png'
+  // 音效勿加入此列表：Pixi Loader 在微信环境无法加载 mp3（会报 data.load is not a function），用 InnerAudioContext 直读路径即可
 ] as const
 
 export type GameScreenMode = 'main' | 'daily'
@@ -107,18 +112,25 @@ export function createGameScreen(
   ;(wrapper as PIXI.DisplayObject & { interactive?: boolean }).interactive = true
   ;(wrapper as PIXI.DisplayObject & { interactiveChildren?: boolean }).interactiveChildren = true
 
+  // 游戏界面背景
   const bgTop = new PIXI.Sprite(PIXI.Texture.from('assets/scene/game/bg-game1.png'))
   bgTop.position.set(0, 0)
   bgTop.width = sw
   bgTop.height = Math.round((351 * sw) / 800)
   wrapper.addChild(bgTop)
 
+  // 木纹背景：与顶图同一横向缩放（参照宽 800px），避免 1:1 纹理像素导致单格超宽、左右像留白或「超出」屏宽
+  const woodTex = PIXI.Texture.from('assets/scene/game/bg-game2.png')
+  const woodRefW = woodTex.width > 1 ? woodTex.width : 800
+  const woodTileK = sw / woodRefW
   const bgFill = new PIXI.TilingSprite(
-    PIXI.Texture.from('assets/scene/game/bg-game2.png'),
+    woodTex,
     sw,
     Math.max(sh - bgTop.height, 1)
   )
-  bgFill.position.set(0, bgTop.height - 1)
+  bgFill.anchor.set(0, 0)
+  bgFill.position.set(0, bgTop.height - 10)
+  bgFill.tileTransform.scale.set(woodTileK, woodTileK)
   wrapper.addChild(bgFill)
 
   const root = new PIXI.Container()
@@ -128,13 +140,14 @@ export function createGameScreen(
 
   const STATUS_Y = (safeAreaTopPx + 8) / dr
 
+  // 顶部状态栏
   const topBar = new PIXI.Container()
   topBar.position.set(0, STATUS_Y)
   root.addChild(topBar)
 
   const titlePill = makePillLabel(
     mode === 'daily' ? '每日挑战' : `主线 · 第${level}关`,
-    300,
+    240,
     50
   )
   titlePill.position.set(DESIGN_W / 2 - titlePill.width / 2, 8)
@@ -146,16 +159,103 @@ export function createGameScreen(
   mechIcon.position.set(DESIGN_W / 2 - titlePill.width / 2 - 36 - 12, 8 + 25)
   topBar.addChild(mechIcon)
 
-  const PROGRESS_W = 560
-  const progressFrame = makeProgressFrame(PROGRESS_W, 46)
+  // 进度条
+  const PROGRESS_W = 300
+  const PROGRESS_H = 20
+  const progressFrame = makeProgressFrame(PROGRESS_W, PROGRESS_H)
   progressFrame.root.position.set((DESIGN_W - PROGRESS_W) / 2, 64)
   topBar.addChild(progressFrame.root)
 
+  const CHEST_CX = PROGRESS_W
+  const CHEST_CY = PROGRESS_H - 20
+  const CHEST_SCALE_BASE = 0.46
+
+  // 宝箱下方层级：持续缓慢上浮的白色星星粒子（轻盈治愈氛围）
+  const chestSparkleEmitter = new PIXI.Container()
+  chestSparkleEmitter.position.set(CHEST_CX, CHEST_CY + 10)
+  progressFrame.root.addChild(chestSparkleEmitter)
+
+  type IdleSparkle = {
+    spr: PIXI.Sprite
+    born: number
+    life: number
+    vy: number
+    vx: number
+    baseScale: number
+  }
+  const idleSparkles: IdleSparkle[] = []
+  let nextChestSparkleAt = 0
+
+  const tickChestIdleSparkles = () => {
+    const pr = progressFrame.root
+    if ((pr as PIXI.DisplayObject & { destroyed?: boolean }).destroyed) {
+      PIXI.Ticker.shared.remove(tickChestIdleSparkles)
+      return
+    }
+    const now = performance.now()
+    const dt = PIXI.Ticker.shared.deltaMS / 1000
+    if (now >= nextChestSparkleAt) {
+      nextChestSparkleAt = now + 160 + Math.random() * 260
+      const starTex = PIXI.Texture.from('assets/common/star.png')
+      const spr = new PIXI.Sprite(starTex)
+      spr.anchor.set(0.5, 0.5)
+      spr.position.set((Math.random() - 0.5) * 20, (Math.random() - 0.5) * 6)
+      spr.tint = 0xffffff
+      spr.blendMode = PIXI.BLEND_MODES.ADD
+      const tw = starTex.width || 24
+      const baseScale = (10 + Math.random() * 8) / tw
+      spr.scale.set(baseScale)
+      spr.alpha = 0
+      chestSparkleEmitter.addChild(spr)
+      idleSparkles.push({
+        spr,
+        born: now,
+        life: 1300 + Math.random() * 900,
+        vy: -(20 + Math.random() * 16),
+        vx: (Math.random() - 0.5) * 14,
+        baseScale,
+      })
+    }
+    for (let i = idleSparkles.length - 1; i >= 0; i--) {
+      const p = idleSparkles[i]
+      const elapsed = now - p.born
+      const u = elapsed / p.life
+      if (u >= 1) {
+        chestSparkleEmitter.removeChild(p.spr)
+        p.spr.destroy()
+        idleSparkles.splice(i, 1)
+        continue
+      }
+      p.spr.alpha = Math.sin(Math.PI * u)
+      const pulse = 1 + 0.12 * Math.sin(elapsed * 0.011)
+      p.spr.scale.set(p.baseScale * pulse)
+      p.spr.y += p.vy * dt
+      p.spr.x += p.vx * dt
+    }
+  }
+  PIXI.Ticker.shared.add(tickChestIdleSparkles)
+
   const chest = new PIXI.Sprite(PIXI.Texture.from('assets/scene/game/chest.png'))
   chest.anchor.set(0.5, 0.5)
-  chest.position.set(PROGRESS_W, 23)
-  chest.scale.set(0.46)
+  chest.position.set(CHEST_CX, CHEST_CY)
+  chest.scale.set(CHEST_SCALE_BASE)
   progressFrame.root.addChild(chest)
+
+  /** 以锚点为中心：宝箱 bounce + 宝箱音效 */
+  function pulseChestCollect() {
+    playChestCollectSound()
+    const base = CHEST_SCALE_BASE
+    const start = performance.now()
+    const dur = 280
+    const tickBounce = () => {
+      const t = Math.min(1, (performance.now() - start) / dur)
+      const s = Math.sin(t * Math.PI)
+      chest.scale.set(base * (1 + 0.14 * s))
+      if (t < 1) requestAnimationFrame(tickBounce)
+      else chest.scale.set(base)
+    }
+    requestAnimationFrame(tickBounce)
+  }
 
   const TOOL_BTN = 120
   const toolBarPadBottom = 16
@@ -188,11 +288,16 @@ export function createGameScreen(
   const boardLayer = new PIXI.Container()
   root.addChild(boardLayer)
 
-  const boardBacking = new PIXI.Graphics()
-  boardBacking.beginFill(0x9d7a4a, 1)
-  boardBacking.drawRect(boardX, boardY, boardW, boardH)
-  boardBacking.endFill()
-  boardLayer.addChild(boardBacking)
+  // 棋盘砖块区域背景：屏坐标 x=0 铺满 sw、与 bgFill 同纹理与同 tileScale，竖直相位对齐
+  const bgFillTopY = bgTop.height - 1
+  const boardScreenY = root.y + boardY * dr
+  const boardScreenH = Math.max(1, Math.round(boardH * dr))
+  const boardBacking = new PIXI.TilingSprite(woodTex, sw, boardScreenH)
+  boardBacking.anchor.set(0, 0)
+  boardBacking.position.set(0, boardScreenY)
+  boardBacking.tileTransform.scale.set(woodTileK, woodTileK)
+  boardBacking.tilePosition.set(0, (bgFillTopY - boardScreenY) / woodTileK)
+  wrapper.addChildAt(boardBacking, 2)
   const fxLayer = new PIXI.Container()
   root.addChild(fxLayer)
   const overlayLayer = new PIXI.Container()
@@ -301,14 +406,15 @@ export function createGameScreen(
     tiles.push(row)
   }
 
+  // 进度数值
   const progressText = new PIXI.Text('0%', {
     fontFamily: FONT_FAMILY,
-    fontSize: 26,
-    fill: 0xffffff,
+    fontSize: 18,
+    fill: 0x000000,
     fontWeight: '800'
   })
   progressText.anchor.set(0.5, 0.5)
-  progressText.position.set(PROGRESS_W / 2, 23)
+  progressText.position.set(PROGRESS_W / 2, 10)
   progressFrame.root.addChild(progressText)
 
   const dockY = DESIGN_H - toolBarH
@@ -565,12 +671,7 @@ export function createGameScreen(
       boardCols,
       progressBarTarget: chest,
       onProgressPulse: () => {
-        const barRoot = progressFrame.root
-        const bs = barRoot.scale.x || 1
-        barRoot.scale.set(bs * 1.06)
-        setTimeout(() => barRoot.scale.set(1), 140)
-        chest.scale.set(chest.scale.x * 1.18)
-        setTimeout(() => chest.scale.set(0.46), 160)
+        pulseChestCollect()
       },
     })
 
@@ -615,7 +716,7 @@ export function createGameScreen(
   function updateProgress() {
     const percent = Math.min(100, Math.floor((removedCount / totalCount) * 100))
     progressText.text = `${percent}%`
-    drawProgressFill(progressFrame.fill, progressFrame.maxW, 46, percent)
+    drawProgressFill(progressFrame.fill, progressFrame.maxW, PROGRESS_H, percent)
     if (percent >= 100) {
       inputBlocked = true
       opts.onLevelClear?.({
@@ -789,7 +890,7 @@ function makePillLabel(text: string, w: number, h: number): PIXI.Container {
   const g = new PIXI.Graphics()
   g.beginFill(0xf9f0df, 0.96)
   g.lineStyle(2, 0x8e6435, 0.95)
-  g.drawRoundedRect(0, 0, w, h, h / 2)
+  g.drawRoundedRect(0, 0, w, h, h)
   g.endFill()
   c.addChild(g)
   const t = new PIXI.Text(text, {
@@ -809,7 +910,7 @@ function makeProgressFrame(w: number, h: number) {
   const bg = new PIXI.Graphics()
   bg.beginFill(0xfff5ed, 0.96)
   bg.lineStyle(2.5, 0x7a4e2d, 0.92)
-  bg.drawRoundedRect(0, 0, w, h, h / 2)
+  bg.drawRoundedRect(0, 0, w, h, h)
   bg.endFill()
   root.addChild(bg)
   const fill = new PIXI.Graphics()
@@ -819,6 +920,7 @@ function makeProgressFrame(w: number, h: number) {
   return { root, fill, maxW }
 }
 
+// 进度条内部填充
 function drawProgressFill(
   g: PIXI.Graphics,
   maxW: number,
