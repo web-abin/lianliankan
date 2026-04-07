@@ -22,7 +22,13 @@ import {
   SHARE_BONUS_REFRESH
 } from '~/game/economy-config'
 import { buildDailyLevelConfig, todayKey } from '~/game/daily-challenge'
-import { openModalShell } from '~/ui/modal-shell'
+import { openSettingsModal } from '~/ui/settings-modal'
+import { openGiveUpModal }   from '~/ui/give-up-modal'
+import { openToolModal }     from '~/ui/tool-modal'
+import { openShopScreen }    from '~/ui/shop-screen'
+import {
+  SHOP_PRICE_BLOOD, SHOP_PRICE_CAPYBARA, SHOP_PRICE_SOUND_PACK, SHOP_PRICE_TOOL_PACK
+} from '~/game/economy-config'
 import { reportProgressToCloud } from '~/wx/supabase-sync'
 import { startGameBgm, stopGameBgm } from '~/game/llk-sound'
 
@@ -103,46 +109,110 @@ export async function show(opts?: {
     hearts: llk.hearts,
     maxHearts: llk.maxHearts,
     onToolBeforeUse: i => {
-      if (i === 0) {
-        if (llk.inventory.hint <= 0) {
-          wx.showToast?.({ title: '提示道具不足', icon: 'none' })
-          return false
-        }
-        llk.inventory.hint -= 1
-        persistLlkSave()
-        return true
-      }
-      if (i === 1) {
-        if (llk.inventory.refresh <= 0) {
-          wx.showToast?.({ title: '刷新道具不足', icon: 'none' })
-          return false
-        }
-        llk.inventory.refresh -= 1
-        persistLlkSave()
-        return true
-      }
-      if (llk.inventory.eliminate <= 0) {
-        wx.showToast?.({ title: '消除道具不足', icon: 'none' })
+      const toolTypes = ['hint', 'refresh', 'eliminate'] as const
+      const toolType = toolTypes[i]
+      if (!toolType) return true // 第 3 格是分享，直接放行
+
+      const stockKey = toolType === 'hint' ? 'hint' : toolType === 'refresh' ? 'refresh' : 'eliminate'
+      if (llk.inventory[stockKey] <= 0) {
+        // 显示道具不足弹窗，提供分享/商店两条路径
+        openToolModal(stage, {
+          toolType,
+          onShare: () => {
+            const anyWx = wx as typeof wx & {
+              shareAppMessage?: (o: { title: string; query: string; success?: () => void }) => void
+            }
+            anyWx.shareAppMessage?.({
+              title: '卡皮巴拉连连看',
+              query: '',
+              success: () => {
+                llk.inventory.hint += SHARE_BONUS_HINT
+                llk.inventory.refresh += SHARE_BONUS_REFRESH
+                llk.inventory.eliminate += SHARE_BONUS_ELIMINATE
+                persistLlkSave()
+                wx.showToast?.({ title: `提示+${SHARE_BONUS_HINT} 刷新+${SHARE_BONUS_REFRESH} 消除+${SHARE_BONUS_ELIMINATE}`, icon: 'none' })
+              }
+            })
+          },
+          onShop: () => {
+            openShopScreen(stage, {
+              coins: llk.coins,
+              inventory: { ...llk.inventory },
+              purchasedCapybara: llk.purchasedCapybara,
+              purchasedSoundPack: llk.purchasedSoundPack,
+              onBuyToolPack: () => {
+                if (llk.coins < SHOP_PRICE_TOOL_PACK) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+                llk.coins -= SHOP_PRICE_TOOL_PACK
+                llk.inventory.hint += 3
+                llk.inventory.refresh += 1
+                llk.inventory.eliminate += 1
+                persistLlkSave()
+                wx.showToast?.({ title: '道具已入库存', icon: 'none' })
+              },
+              onBuyBlood: () => {
+                if (llk.coins < SHOP_PRICE_BLOOD) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+                llk.coins -= SHOP_PRICE_BLOOD
+                llk.hearts = Math.min(llk.maxHearts, llk.hearts + 1)
+                persistLlkSave()
+              },
+              onBuyCapybara: () => {
+                if (llk.coins < SHOP_PRICE_CAPYBARA) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+                llk.coins -= SHOP_PRICE_CAPYBARA
+                llk.purchasedCapybara = true
+                persistLlkSave()
+              },
+              onBuySoundPack: () => {
+                if (llk.coins < SHOP_PRICE_SOUND_PACK) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+                llk.coins -= SHOP_PRICE_SOUND_PACK
+                llk.purchasedSoundPack = true
+                persistLlkSave()
+              }
+            })
+          }
+        })
         return false
       }
-      llk.inventory.eliminate -= 1
+
+      llk.inventory[stockKey] -= 1
       persistLlkSave()
       return true
     },
     onBack: () => navigator.back(),
     onPause: () => {
-      openModalShell(stage, {
-        title: '放弃挑战？',
-        body: `当前进度：第 ${level} 关\n再努力一下就要过关了`,
-        cancelText: '再试试',
-        confirmText: '回首页',
-        onCancel: () => {},
-        onConfirm: () => {
-          if (mode === 'main') {
-            llk.hearts = Math.max(0, llk.hearts - 1)
-            persistLlkSave()
-          }
-          navigator.back()
+      // 暂停/设置弹窗（局内模式）
+      openSettingsModal(stage, {
+        isInGame: true,
+        soundOn: llk.soundOn,
+        vibrationOn: llk.vibrationOn,
+        musicOn: llk.musicOn,
+        onSoundToggle: (v) => { llk.soundOn = v; persistLlkSave() },
+        onVibrationToggle: (v) => { llk.vibrationOn = v; persistLlkSave() },
+        onMusicToggle: (v) => { llk.musicOn = v; persistLlkSave() },
+        onFeedback: () => {
+          try {
+            const w = wx as typeof wx & { openCustomerServiceConversation?: (o: object) => void }
+            w.openCustomerServiceConversation?.({})
+          } catch (_) { wx.showToast?.({ title: '请升级基础库', icon: 'none' }) }
+        },
+        onReplay: () => {
+          // 重玩：重新进入当前关
+          navigator.redirect('game', { level, mode })
+        },
+        onGiveUp: () => {
+          // 先弹挽回弹窗，让玩家确认
+          openGiveUpModal(stage, {
+            levelNum: level,
+            cleared: 0,   // TODO: 从 game-screen 获取实时进度
+            total: (levelConfig.cols ?? 8) * (levelConfig.rows ?? 8) / 2,
+            onRetry: () => { /* 玩家选择再试，啥都不做，弹窗已关闭 */ },
+            onGiveUp: () => {
+              if (mode === 'main') {
+                llk.hearts = Math.max(0, llk.hearts - 1)
+                persistLlkSave()
+              }
+              navigator.back()
+            }
+          })
         }
       })
     },
@@ -152,17 +222,12 @@ export async function show(opts?: {
         wx.showToast?.({ title: '激励视频占位', icon: 'none' })
         return
       }
-      const msg: Parameters<typeof wx.shareAppMessage>[0] = {
-        title: '卡皮巴拉连连看',
-        query: ''
-      }
       const anyWx = wx as typeof wx & {
-        shareAppMessage?: (o: typeof msg & {
-          success?: () => void
-        }) => void
+        shareAppMessage?: (o: { title: string; query: string; success?: () => void }) => void
       }
       anyWx.shareAppMessage?.({
-        ...msg,
+        title: '卡皮巴拉连连看',
+        query: '',
         success: () => {
           llk.inventory.hint += SHARE_BONUS_HINT
           llk.inventory.refresh += SHARE_BONUS_REFRESH

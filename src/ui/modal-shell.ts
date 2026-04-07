@@ -1,27 +1,27 @@
 /**
- * 全局弹窗壳：卡皮巴拉 IP 风格 — 奶油白圆角卡片 + bounce 入场
- * 样式遵循设计图2.md 全局设计语言：
- *   - 背景遮罩：深棕 #3E2010 @ 50%
- *   - 面板：奶油白 #FFF5E8，radius 32px，深棕 4px 描边
- *   - 标题：深棕粗体 30px
- *   - 正文：深棕 26px
- *   - 主按钮：橙色果冻感（顶部高光 + 底部投影）
+ * 全局弹窗壳：卡皮巴拉 IP 风格 — 云朵白圆角卡片 + bounce 入场
+ * 样式遵循设计图 春日草地彩铅水彩风 全局设计语言：
+ *   - 背景遮罩：深森绿 #2A5A14 @ 45%
+ *   - 面板：云朵白 #FFFEF2，radius 28px，深森绿 4px 描边
+ *   - 标题：深森绿粗体 34px
+ *   - 正文：深森绿 26px
+ *   - 主按钮：珊瑚橙果冻感（顶部高光 + 底部深绿投影）
  *   - 次按钮：灰色圆角
- *   - 右上角关闭按钮：深棕圆形 ×
+ *   - 右上角关闭按钮：深森绿圆形 ×
  */
 import * as PIXI from 'pixi.js'
 import { windowWidth, windowHeight, DESIGN_REF_W, designLayoutH } from '~/core'
 
-// 设计色板
-const C_OUTLINE  = 0x3e2010  // 深棕描边
-const C_PANEL    = 0xfff5e8  // 奶油白面板
-const C_OVERLAY  = 0x3e2010  // 遮罩底色
-const C_ORANGE   = 0xff8c42  // 主按钮橙色
-const C_ORANGE_H = 0xffb347  // 高光橙黄
-const C_ORANGE_S = 0xc45e1a  // 阴影深橙
-const C_GRAY_BTN = 0xb0a090  // 次按钮灰
-const C_TEXT     = 0x3e2010  // 主文字深棕
-const C_CLOSE_BG = 0x3e2010  // 关闭按钮底色
+// 设计色板（春日草地彩铅水彩风）
+const C_OUTLINE  = 0x2a5a14  // 深森林绿描边
+const C_PANEL    = 0xfffef2  // 云朵白面板
+const C_OVERLAY  = 0x2a5a14  // 遮罩底色
+const C_ORANGE   = 0xff7a45  // 主按钮珊瑚橙
+const C_ORANGE_H = 0xffaa7a  // 高光浅橙
+const C_ORANGE_S = 0x2a5a14  // 阴影深森绿
+const C_GRAY_BTN = 0xb0b0b0  // 次按钮灰
+const C_TEXT     = 0x2a5a14  // 主文字深森绿
+const C_CLOSE_BG = 0x2a5a14  // 关闭按钮底色
 
 export interface ModalShellOptions {
   title?: string

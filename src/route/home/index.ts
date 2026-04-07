@@ -1,5 +1,6 @@
 /**
  * 首页路由
+ * 负责首页 UI 组件创建与所有弹窗的调起
  */
 import * as PIXI from 'pixi.js'
 import { stage, loader } from '~/core'
@@ -17,15 +18,22 @@ import {
   SHOUT_DAILY_CAP
 } from '~/game/economy-config'
 import type { GameThemeId } from '~/game/game-hooks'
-import { openModalShell } from '~/ui/modal-shell'
-import { fetchWorldRank } from '~/wx/supabase-sync'
+
+// 弹窗/界面模块
+import { openSettingsModal }    from '~/ui/settings-modal'
+import { openShopScreen }       from '~/ui/shop-screen'
+import { openThemePanel }       from '~/ui/theme-panel'
+import { openRankScreen }       from '~/ui/rank-screen'
+import { openShoutModal }       from '~/ui/shout-modal'
+import { openDailyRewardModal } from '~/ui/daily-reward-modal'
+import { openCircleGiftModal }  from '~/ui/circle-gift-modal'
+import { openAddDeskModal }     from '~/ui/add-desk-modal'
+import { fetchWorldRank }       from '~/wx/supabase-sync'
 
 let root: PIXI.Container | null = null
 
 async function preload() {
-  const toLoad: string[] = (ASSET_URLS as unknown as string[]).filter(
-    url => !loader.resources[url]
-  )
+  const toLoad = (ASSET_URLS as unknown as string[]).filter(url => !loader.resources[url])
   if (toLoad.length === 0) return
   await new Promise<void>(resolve => {
     toLoad.forEach(url => loader.add(url))
@@ -44,28 +52,29 @@ function init() {
     coins: llk.coins,
     hearts: llk.hearts,
     maxHearts: llk.maxHearts,
+
+    // ── 开始游戏 ─────────────────────────────────
     onStart: () => {
       if (llk.hearts <= 0) {
-        wx.showToast?.({
-          title: '血量为 0，无法开始普通关（可挑战每日或去商店）',
-          icon: 'none'
-        })
+        wx.showToast?.({ title: '血量为 0，无法开始普通关', icon: 'none' })
         return
       }
       navigator.go('game', { level: llk.currentLevel, mode: 'main' })
     },
+
+    // ── 设置 ─────────────────────────────────────
     onSettings: () => {
-      openModalShell(stage, {
-        title: '设置',
-        body: '音效 / 震动 / 音乐 等可在后续版本细化',
-        cancelText: '关闭',
-        confirmText: '问题反馈',
-        onCancel: () => {},
-        onConfirm: () => {
+      openSettingsModal(stage, {
+        isInGame: false,
+        soundOn: llk.soundOn,
+        vibrationOn: llk.vibrationOn,
+        musicOn: llk.musicOn,
+        onSoundToggle: (v) => { llk.soundOn = v; persistLlkSave() },
+        onVibrationToggle: (v) => { llk.vibrationOn = v; persistLlkSave() },
+        onMusicToggle: (v) => { llk.musicOn = v; persistLlkSave() },
+        onFeedback: () => {
           try {
-            const w = wx as typeof wx & {
-              openCustomerServiceConversation?: (opts: object) => void
-            }
+            const w = wx as typeof wx & { openCustomerServiceConversation?: (o: object) => void }
             w.openCustomerServiceConversation?.({})
           } catch (_) {
             wx.showToast?.({ title: '请升级基础库', icon: 'none' })
@@ -73,170 +82,158 @@ function init() {
         }
       })
     },
+
+    // ── 圈子好礼 ─────────────────────────────────
     onGift: () => {
-      if (llk.circleRewarded) {
-        wx.showToast?.({ title: '已领取过圈子好礼', icon: 'none' })
-        return
-      }
-      llk.coins += COINS_CIRCLE_ONCE
-      llk.circleRewarded = true
-      persistLlkSave()
-      wx.showToast?.({ title: `+${COINS_CIRCLE_ONCE} 金币`, icon: 'none' })
-      refreshHome()
-    },
-    onShout: () => {
-      const dk = dayKey()
-      if (SHOUT_DAILY_CAP > 0 && llk.lastShoutDayKey === dk && llk.shoutCountToday >= SHOUT_DAILY_CAP) {
-        wx.showToast?.({ title: '今日喊人次数已用完', icon: 'none' })
-        return
-      }
-      llk.hearts = Math.min(llk.maxHearts, llk.hearts + SHOUT_BLOOD_BONUS)
-      if (llk.lastShoutDayKey !== dk) {
-        llk.shoutCountToday = 0
-        llk.lastShoutDayKey = dk
-      }
-      llk.shoutCountToday += 1
-      persistLlkSave()
-      wx.showToast?.({ title: `+${SHOUT_BLOOD_BONUS} 血`, icon: 'none' })
-      refreshHome()
-    },
-    onDesk: () => {
-      if (grantDeskDailyIfNeeded()) {
-        wx.showToast?.({ title: '桌面进入 +50 金币', icon: 'none' })
-        refreshHome()
-      } else {
-        wx.showToast?.({ title: '今日已领过桌面奖励', icon: 'none' })
-      }
-    },
-    onReward: () => {
-      const r = claimSignInReward()
-      if (!r) {
-        wx.showToast?.({ title: '今日已签到', icon: 'none' })
-        return
-      }
-      wx.showToast?.({
-        title: `连续第${r.streak}天 +${r.coins} 金币`,
-        icon: 'none'
-      })
-      refreshHome()
-    },
-    onDailyChallenge: () => {
-      navigator.go('game', { mode: 'daily' })
-    },
-    onShop: () => {
-      wx.showActionSheet?.({
-        itemList: [
-          `道具包 ×1（${SHOP_PRICE_TOOL_PACK} 金）`,
-          `买血 1 滴（${SHOP_PRICE_BLOOD} 金）`,
-          `卡皮巴拉形象（${SHOP_PRICE_CAPYBARA} 金）`,
-          `音效包（${SHOP_PRICE_SOUND_PACK} 金）`
-        ],
-        success: (res: { tapIndex: number }) => {
-          const i = res.tapIndex
-          if (i === 0) {
-            if (llk.coins < SHOP_PRICE_TOOL_PACK) {
-              wx.showToast?.({ title: '金币不足', icon: 'none' })
-              return
-            }
-            llk.coins -= SHOP_PRICE_TOOL_PACK
-            llk.inventory.hint += 3
-            llk.inventory.refresh += 3
-            llk.inventory.eliminate += 3
-            persistLlkSave()
-            wx.showToast?.({ title: '道具已入库存', icon: 'none' })
-            refreshHome()
+      openCircleGiftModal(stage, {
+        coinReward: COINS_CIRCLE_ONCE,
+        alreadyClaimed: llk.circleRewarded,
+        onJoin: () => {
+          if (llk.circleRewarded) {
+            wx.showToast?.({ title: '已领取过圈子好礼', icon: 'none' })
             return
           }
-          if (i === 1) {
-            if (llk.coins < SHOP_PRICE_BLOOD) {
-              wx.showToast?.({ title: '金币不足', icon: 'none' })
-              return
-            }
-            llk.coins -= SHOP_PRICE_BLOOD
-            llk.hearts = Math.min(llk.maxHearts, llk.hearts + 1)
-            persistLlkSave()
-            wx.showToast?.({ title: '+1 血', icon: 'none' })
-            refreshHome()
-            return
-          }
-          if (i === 2) {
-            if (llk.purchasedCapybara) {
-              wx.showToast?.({ title: '已拥有', icon: 'none' })
-              return
-            }
-            if (llk.coins < SHOP_PRICE_CAPYBARA) {
-              wx.showToast?.({ title: '金币不足', icon: 'none' })
-              return
-            }
-            llk.coins -= SHOP_PRICE_CAPYBARA
-            llk.purchasedCapybara = true
-            persistLlkSave()
-            wx.showToast?.({ title: '已购买形象', icon: 'none' })
-            refreshHome()
-            return
-          }
-          if (i === 3) {
-            if (llk.purchasedSoundPack) {
-              wx.showToast?.({ title: '已拥有', icon: 'none' })
-              return
-            }
-            if (llk.coins < SHOP_PRICE_SOUND_PACK) {
-              wx.showToast?.({ title: '金币不足', icon: 'none' })
-              return
-            }
-            llk.coins -= SHOP_PRICE_SOUND_PACK
-            llk.purchasedSoundPack = true
-            persistLlkSave()
-            wx.showToast?.({ title: '已购买音效包', icon: 'none' })
-            refreshHome()
-          }
-        }
-      })
-    },
-    onTheme: () => {
-      const names: Record<GameThemeId, string> = {
-        food: '美食（默认）',
-        fruit: '水果季',
-        kitchen: '小厨房',
-        forest: '森友会'
-      }
-      const lines = (['food', 'fruit', 'kitchen', 'forest'] as GameThemeId[])
-        .filter(t => llk.unlockedThemes.includes(t))
-        .map(t => `${names[t]}${t === llk.selectedTheme ? ' ✓' : ''}`)
-      openModalShell(stage, {
-        title: '主题',
-        body: lines.join('\n') + '\n\n点确定循环切换已解锁主题',
-        cancelText: '关闭',
-        confirmText: '切换',
-        onCancel: () => {},
-        onConfirm: () => {
-          const order: GameThemeId[] = ['food', 'fruit', 'kitchen', 'forest']
-          const avail = order.filter(t => llk.unlockedThemes.includes(t))
-          const i = Math.max(0, avail.indexOf(llk.selectedTheme))
-          llk.selectedTheme = avail[(i + 1) % avail.length]
+          llk.coins += COINS_CIRCLE_ONCE
+          llk.circleRewarded = true
           persistLlkSave()
-          wx.showToast?.({ title: `已选 ${names[llk.selectedTheme]}`, icon: 'none' })
+          wx.showToast?.({ title: `+${COINS_CIRCLE_ONCE} 金币`, icon: 'none' })
           refreshHome()
         }
       })
     },
-    onRank: async () => {
-      const rows = await fetchWorldRank(50)
-      if (rows.length === 0) {
-        try {
-          wx.getOpenDataContext?.().postMessage?.({ type: 'rank' })
-        } catch (_) {}
-        wx.showToast?.({
-          title: '世界榜待云端联调；已请求好友榜数据域',
-          icon: 'none'
-        })
-        return
-      }
-      wx.showModal?.({
-        title: '世界榜（占位）',
-        content: rows.slice(0, 5).map(r => `${r.rank}. L${r.level}`).join('\n'),
-        showCancel: false
+
+    // ── 喊人 ─────────────────────────────────────
+    onShout: () => {
+      openShoutModal(stage, {
+        bloodBonus: SHOUT_BLOOD_BONUS,
+        onShare: () => {
+          const dk = dayKey()
+          if (SHOUT_DAILY_CAP > 0 && llk.lastShoutDayKey === dk && llk.shoutCountToday >= SHOUT_DAILY_CAP) {
+            wx.showToast?.({ title: '今日喊人次数已用完', icon: 'none' })
+            return
+          }
+          // 触发微信分享
+          wx.shareAppMessage?.({
+            title: '快来帮我通关！',
+            imageUrl: ''
+          })
+          llk.hearts = Math.min(llk.maxHearts, llk.hearts + SHOUT_BLOOD_BONUS)
+          if (llk.lastShoutDayKey !== dk) {
+            llk.shoutCountToday = 0
+            llk.lastShoutDayKey = dk
+          }
+          llk.shoutCountToday += 1
+          persistLlkSave()
+          wx.showToast?.({ title: `+${SHOUT_BLOOD_BONUS} 血`, icon: 'none' })
+          refreshHome()
+        }
       })
+    },
+
+    // ── 添加桌面 ──────────────────────────────────
+    onDesk: () => {
+      const alreadyToday = !grantDeskDailyIfNeeded()
+      openAddDeskModal(stage, {
+        todayReceived: alreadyToday,
+        onAdd: () => {
+          wx.addToFavorites?.({} as any)
+          if (!alreadyToday && grantDeskDailyIfNeeded()) {
+            wx.showToast?.({ title: '桌面进入 +50 金币 🌿', icon: 'none' })
+            refreshHome()
+          } else {
+            wx.showToast?.({ title: '今日已领过桌面奖励', icon: 'none' })
+          }
+        }
+      })
+    },
+
+    // ── 每日奖励（签到日历）──────────────────────
+    onReward: () => {
+      const alreadyClaimed = llk.lastSignInDayKey === dayKey()
+      openDailyRewardModal(stage, {
+        streakDay: llk.streakDay,
+        alreadyClaimed,
+        onClaim: () => {
+          const r = claimSignInReward()
+          if (!r) {
+            wx.showToast?.({ title: '今日已签到', icon: 'none' })
+            return
+          }
+          wx.showToast?.({ title: `连续第${r.streak}天 +${r.coins} 金币`, icon: 'none' })
+          refreshHome()
+        }
+      })
+    },
+
+    // ── 每日挑战 ──────────────────────────────────
+    onDailyChallenge: () => {
+      navigator.go('game', { mode: 'daily' })
+    },
+
+    // ── 商店（全屏） ──────────────────────────────
+    onShop: () => {
+      openShopScreen(stage, {
+        coins: llk.coins,
+        inventory: { ...llk.inventory },
+        purchasedCapybara: llk.purchasedCapybara,
+        purchasedSoundPack: llk.purchasedSoundPack,
+        onBuyToolPack: () => {
+          if (llk.coins < SHOP_PRICE_TOOL_PACK) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+          llk.coins -= SHOP_PRICE_TOOL_PACK
+          llk.inventory.hint += 3
+          llk.inventory.refresh += 1
+          llk.inventory.eliminate += 1
+          persistLlkSave()
+          wx.showToast?.({ title: '道具已入库存', icon: 'none' })
+          refreshHome()
+        },
+        onBuyBlood: () => {
+          if (llk.coins < SHOP_PRICE_BLOOD) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+          llk.coins -= SHOP_PRICE_BLOOD
+          llk.hearts = Math.min(llk.maxHearts, llk.hearts + 1)
+          persistLlkSave()
+          wx.showToast?.({ title: '+1 血', icon: 'none' })
+          refreshHome()
+        },
+        onBuyCapybara: () => {
+          if (llk.purchasedCapybara) { wx.showToast?.({ title: '已拥有', icon: 'none' }); return }
+          if (llk.coins < SHOP_PRICE_CAPYBARA) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+          llk.coins -= SHOP_PRICE_CAPYBARA
+          llk.purchasedCapybara = true
+          persistLlkSave()
+          wx.showToast?.({ title: '已购买形象', icon: 'none' })
+          refreshHome()
+        },
+        onBuySoundPack: () => {
+          if (llk.purchasedSoundPack) { wx.showToast?.({ title: '已拥有', icon: 'none' }); return }
+          if (llk.coins < SHOP_PRICE_SOUND_PACK) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+          llk.coins -= SHOP_PRICE_SOUND_PACK
+          llk.purchasedSoundPack = true
+          persistLlkSave()
+          wx.showToast?.({ title: '已购买音效包', icon: 'none' })
+          refreshHome()
+        }
+      })
+    },
+
+    // ── 主题（网格选择弹窗） ──────────────────────
+    onTheme: () => {
+      openThemePanel(stage, {
+        unlockedThemes: [...llk.unlockedThemes] as GameThemeId[],
+        selectedTheme: llk.selectedTheme as GameThemeId,
+        onSelect: (themeId) => {
+          llk.selectedTheme = themeId
+          persistLlkSave()
+          refreshHome()
+        }
+      })
+    },
+
+    // ── 排行榜（全屏） ────────────────────────────
+    onRank: async () => {
+      // 拉取世界榜数据（异步，显示时可能已有缓存）
+      const worldRows = await fetchWorldRank(50).catch(() => [])
+      openRankScreen(stage, { worldRows })
     }
   })
 }

@@ -35,13 +35,13 @@
 
 ## 5. Supabase 与排行榜（llk-sync-rank-supabase）
 
-- [ ] 5.1 设计并迁移用户表字段：昵称头像、金币、已购、最高关、最高关当局步数、最高关通关时间戳
-- [ ] 5.2 实现 Edge Function 登录与令牌校验；密钥仅服务端/.env
-- [ ] 5.3 实现客户端同步：通关后上报刷新世界榜相关字段
-- [ ] 5.4 实现世界榜查询：排序键关卡数 → 最高关当局步数 → 通关时间戳
-- [ ] 5.5 联调与防刷基础策略（限频、异常步数标记）
+- [x] 5.1 设计并迁移用户表字段：昵称头像、金币、已购、最高关、最高关当局步数、最高关通关时间戳
+- [x] 5.2 实现 Edge Function 登录与令牌校验；密钥仅服务端/.env
+- [x] 5.3 实现客户端同步：通关后上报刷新世界榜相关字段
+- [x] 5.4 实现世界榜查询：排序键关卡数 → 最高关当局步数 → 通关时间戳
+- [x] 5.5 联调与防刷基础策略（限频、异常步数标记）
 
-> 客户端已含 `wx/supabase-sync.ts` 占位与本地 `llk` 排行相关字段；服务端迁移与 Edge Function 需另环境接入。
+> SQL migration：`supabase/migrations/20240101000000_create_llk_users.sql`；Edge Functions：`supabase/functions/wx-login/` + `supabase/functions/llk-report/`；部署说明见 `supabase/README.md`；需在 Supabase Dashboard 配置 `WX_APP_SECRET` + `SUPABASE_SERVICE_ROLE_KEY` 后生效。
 
 ## 6. 微信壳层与首页（llk-wechat-shell）
 
@@ -54,5 +54,7 @@
 
 ## 7. 验收与文档
 
-- [ ] 7.1 按各 spec 的 Scenario 列验收清单做一轮走查
-- [ ] 7.2 将 `docs/prompt.md` 中与 spec 已一致或已废弃的段落标注「以 OpenSpec 为准」（可选）
+- [x] 7.1 按各 spec 的 Scenario 列验收清单做一轮走查
+- [x] 7.2 将 `docs/prompt.md` 中与 spec 已一致或已废弃的段落标注「以 OpenSpec 为准」（可选）
+
+> 7.1 验收清单：`openspec/changes/link-game-product-spec/validation-checklist.md`（50 个 Scenario，含 5 大 spec）。7.2 `docs/prompt.md` 已逐条添加注释，废弃条款（如排行榜第三键「创建时间倒排」、分享"给3个"细节）均已标注。

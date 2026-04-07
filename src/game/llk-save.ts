@@ -56,6 +56,12 @@ export interface LlkSaveV1 {
   purchasedCapybara: boolean
   purchasedSoundPack: boolean
   dailyChallenge: DailyChallengeState | null
+  /** 设置：音效开关（默认开） */
+  soundOn: boolean
+  /** 设置：震动开关（默认开） */
+  vibrationOn: boolean
+  /** 设置：音乐开关（默认开） */
+  musicOn: boolean
 }
 
 const defaultSave = (): LlkSaveV1 => ({
@@ -79,7 +85,10 @@ const defaultSave = (): LlkSaveV1 => ({
   shoutCountToday: 0,
   purchasedCapybara: false,
   purchasedSoundPack: false,
-  dailyChallenge: null
+  dailyChallenge: null,
+  soundOn: true,
+  vibrationOn: true,
+  musicOn: true
 })
 
 function dayKeyNow(): string {

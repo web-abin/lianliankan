@@ -297,6 +297,7 @@ try { wx.getOpenDataContext?.().postMessage?.({...}) } catch (_) {}
 
 ```
 src/
+  config          # 一些配置文件，例如关卡难度配置
   app.ts          # 入口，仅做延迟初始化，不放业务逻辑
   bootstrap.ts    # 真正的启动逻辑（路由初始化）
   core/
