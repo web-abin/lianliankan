@@ -1,10 +1,10 @@
 /**
- * 每日挑战：独立生成器、日级种子、双维度组合（无双重力）
+ * 每日挑战：独立生成器、日级种子、固定重力 + 随机第二机制
  */
 import type { MainLineLevelEntry } from '~/constants/link-level-types'
 import { loadMainLineManifest } from '~/game/link-level'
 
-export type DailyDim = 'fog' | 'gravity' | 'flip' | 'highKinds'
+export type DailyDim = 'fog' | 'gravity' | 'flip'
 
 export interface DailyCombo {
   dimA: DailyDim
@@ -35,14 +35,10 @@ export function todayKey(): string {
 /**
  * 从主线第 L 关取最大棋盘尺寸；若 manifest 为空则默认 8×14
  */
-export async function maxBoardFromManifest(): Promise<{
-  cols: number
-  rows: number
-  capKinds: number
-}> {
+export async function maxBoardFromManifest(): Promise<{ cols: number; rows: number }> {
   const m = await loadMainLineManifest()
   const L = m.levels.length
-  if (L === 0) return { cols: 8, rows: 14, capKinds: 12 }
+  if (L === 0) return { cols: 8, rows: 14 }
   let maxArea = 0
   let entry = m.levels[L - 1]
   for (const e of m.levels) {
@@ -52,7 +48,7 @@ export async function maxBoardFromManifest(): Promise<{
       entry = e
     }
   }
-  return { cols: entry.cols, rows: entry.rows, capKinds: entry.kindCount }
+  return { cols: entry.cols, rows: entry.rows }
 }
 
 /**
@@ -62,22 +58,15 @@ export async function buildDailyLevelConfig(
   dayKey: string,
   openIdSalt = ''
 ): Promise<{ entry: MainLineLevelEntry; combo: DailyCombo; seed: number }> {
-  const { cols, rows, capKinds } = await maxBoardFromManifest()
+  const { cols, rows } = await maxBoardFromManifest()
   const seed =
     (Number(dayKey.replace(/\D/g, '').slice(0, 8)) * 1000003 +
       hashStr(openIdSalt)) >>>
     0
   const rnd = mulberry32(seed)
 
-  const pool: DailyDim[] = ['fog', 'gravity', 'flip', 'highKinds']
-  const pick = () => pool[Math.floor(rnd() * pool.length)]
-  let dimA = pick()
-  let dimB = pick()
-  let guard = 0
-  while (dimA === dimB && guard++ < 16) {
-    dimB = pick()
-  }
-  if (dimA === dimB) dimB = (dimA === 'fog' ? 'gravity' : 'fog') as DailyDim
+  const dimA: DailyDim = 'gravity'
+  const dimB: DailyDim = rnd() < 0.5 ? 'fog' : 'flip'
 
   const gdir = GRAVITIES[Math.floor(rnd() * GRAVITIES.length)]
 
@@ -85,7 +74,7 @@ export async function buildDailyLevelConfig(
     id: `daily-${dayKey}`,
     cols,
     rows,
-    kindCount: Math.min(capKinds + (dimB === 'highKinds' || dimA === 'highKinds' ? 2 : 0), 18),
+    kindCount: 15,
     gravity: 'none',
     fog: false,
     flip: false
