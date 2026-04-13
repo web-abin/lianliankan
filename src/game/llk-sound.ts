@@ -1,65 +1,67 @@
-import * as store from '~/core/store'
+/**
+ * 局内音效与 BGM（均读取 llk 本地设置开关）
+ */
+import { llk } from '~/game/llk-save'
 
+// 音效路径（待美术提供后替换为正式资源）
 const SELECT_SRC = 'assets/sounds/select.mp3'
 const XIAOCHU_SRC = 'assets/sounds/xiaochu.mp3'
+const JELLY_BREAK_SRC = 'assets/sounds/jelly-break.mp3'
 const BAOXIANG_SRC = 'assets/sounds/baoxiang.mp3'
-const BGM_SRC = 'http://tcp690219.hn-bkt.clouddn.com/bgm.mp3'
+const GRAVITY_LAND_SRC = 'assets/sounds/gravity-land.mp3'
+// 局内 BGM 使用本地文件（待实际音频资源放入 assets/sounds/）
+const BGM_SRC = 'assets/sounds/bgm-game.mp3'
 
-/** 局内循环 BGM 单例，离开局内需 stopGameBgm 释放 */
+/** 局内循环 BGM 单例，离开局内调用 stopGameBgm() 释放 */
 let gameBgmCtx: wx.IInnerAudioContext | null = null
 
 function destroyCtx(c: wx.IInnerAudioContext) {
-  try {
-    c.destroy()
-  } catch (_) {}
+  try { c.destroy() } catch (_) {}
 }
 
-/** 选中砖块（代码包内音频） */
+function playSfx(src: string) {
+  if (!llk.soundOn) return
+  const c = wx.createInnerAudioContext({ useWebAudioImplement: true })
+  c.src = src
+  c.onEnded(() => destroyCtx(c))
+  c.onError(() => destroyCtx(c))
+  c.play()
+}
+
+/** 选中图块音效 */
 export function playSelectSound(): void {
-  if (!store.mem.user.settings.voice) return
-  const c = wx.createInnerAudioContext({ useWebAudioImplement: true })
-  c.src = SELECT_SRC
-  c.onEnded(() => destroyCtx(c))
-  c.onError(() => destroyCtx(c))
-  c.play()
+  playSfx(SELECT_SRC)
 }
 
-/**
- * 配对成功瞬间：播一次选中音；消除爆裂音在爆裂时机由 `playEliminationBurstSound` 触发。
- */
+/** 配对成功时播放 */
 export function playSelectThenClear(): void {
-  if (!store.mem.user.settings.voice) return
-  const s = wx.createInnerAudioContext({ useWebAudioImplement: true })
-  s.src = SELECT_SRC
-  s.onEnded(() => destroyCtx(s))
-  s.onError(() => destroyCtx(s))
-  s.play()
+  playSfx(SELECT_SRC)
 }
 
-/** 消除爆裂（与棋盘爆裂特效同步） */
+/** 图块消除爆裂音效 */
 export function playEliminationBurstSound(): void {
-  if (!store.mem.user.settings.voice) return
-  const c = wx.createInnerAudioContext({ useWebAudioImplement: true })
-  c.src = XIAOCHU_SRC
-  c.onEnded(() => destroyCtx(c))
-  c.onError(() => destroyCtx(c))
-  c.play()
+  playSfx(XIAOCHU_SRC)
 }
 
-/** 收集星飞入宝箱命中时 */
+/** 果冻破层音效 */
+export function playJellyBreakSound(): void {
+  playSfx(JELLY_BREAK_SRC)
+}
+
+/** 宝箱收集音效 */
 export function playChestCollectSound(): void {
-  if (!store.mem.user.settings.voice) return
-  const c = wx.createInnerAudioContext({ useWebAudioImplement: true })
-  c.src = BAOXIANG_SRC
-  c.onEnded(() => destroyCtx(c))
-  c.onError(() => destroyCtx(c))
-  c.play()
+  playSfx(BAOXIANG_SRC)
 }
 
-/** 局内背景音乐：循环播放，尊重「音乐」开关；BGM 用非 WebAudio 实现兼容性更好 */
+/** 重力补位落地音效 */
+export function playGravityLandSound(): void {
+  playSfx(GRAVITY_LAND_SRC)
+}
+
+/** 局内 BGM：循环播放，尊重「音乐」开关；用非 WebAudio 实现兼容性更好 */
 export function startGameBgm(): void {
   stopGameBgm()
-  if (!store.mem.user.settings.music) return
+  if (!llk.musicOn) return
   const c = wx.createInnerAudioContext({ useWebAudioImplement: false })
   c.src = BGM_SRC
   c.loop = true
@@ -76,8 +78,6 @@ export function stopGameBgm(): void {
   if (!gameBgmCtx) return
   const c = gameBgmCtx
   gameBgmCtx = null
-  try {
-    c.stop()
-  } catch (_) {}
+  try { c.stop() } catch (_) {}
   destroyCtx(c)
 }

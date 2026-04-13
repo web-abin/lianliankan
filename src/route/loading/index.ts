@@ -1,10 +1,11 @@
 import * as PIXI from 'pixi.js'
-import { stage, loader, screen, tick } from '~/core'
+import { stage, loader, screen, tick, ticker, windowHeight } from '~/core'
 import { ASSET_URLS, ROLE_SHEET_URL } from '~/ui/home'
 import { GAME_PRELOAD_URLS } from '~/ui/game-screen'
 import * as navigator from '~/navigator'
 
 let root: PIXI.Container | null = null
+let _bounceTick: ((delta: number) => void) | null = null
 
 type SignalBinding = { detach: () => boolean }
 
@@ -23,123 +24,208 @@ export async function show() {
   const W = screen.width
   const H = screen.height
 
-  // 背景
-  const bg = new PIXI.Graphics()
-  bg.beginFill(0xf5ead8, 1)
-  bg.drawRect(0, 0, W, H)
-  bg.endFill()
-  root.addChild(bg)
-
-  // 顶部图片：loading2.png，宽 200px，垂直居中偏上
-  const IMG_W = 200
-  const imgSpr = PIXI.Sprite.from('assets/common/loading2.png')
-  imgSpr.anchor.set(0.5, 0.5)
-  imgSpr.width = IMG_W
-  imgSpr.height = IMG_W // 先占位，加载后修正为真实比例
-  imgSpr.position.set(W / 2, H * 0.38)
-  root.addChild(imgSpr)
-
-  const setSize = () => {
-    const t = imgSpr.texture
-    if (t.width > 0) {
-      imgSpr.width = IMG_W
-      imgSpr.height = Math.round((IMG_W * t.height) / t.width)
+  // ── 背景图：宽度100%，高度等比缩放，垂直居中 ──
+  const bgSpr = PIXI.Sprite.from('assets/scene/loading/bg.png')
+  bgSpr.anchor.set(0.5)
+  bgSpr.x = W / 2
+  bgSpr.y = H / 2
+  const applyBgSize = () => {
+    const t = bgSpr.texture
+    const tw = (t as any).orig?.width || t.width
+    const th = (t as any).orig?.height || t.height
+    if (tw > 0 && th > 0) {
+      bgSpr.width = W
+      bgSpr.height = Math.round((W * th) / tw)
     }
   }
-  if (imgSpr.texture.valid) {
-    setSize()
-  } else {
-    imgSpr.texture.baseTexture.once('loaded', setSize)
-  }
+  if (bgSpr.texture.valid) applyBgSize()
+  else bgSpr.texture.baseTexture.once('loaded', applyBgSize)
+  root.addChild(bgSpr)
 
-  const BOTTOM_Y = H * 0.84
+  // ── 角色图：水平垂直居中于屏幕中心 ──
+  const ROLE_CENTER_X = W / 2
+  const ROLE_CENTER_Y = H / 2
+  const ROLE_TARGET_W = Math.round(W * 0.5)
 
-  const label = new PIXI.Text('loading...', {
-    fontFamily: 'sans-serif',
-    fontSize: 26,
-    fontWeight: '400',
-    fill: 0x8b5e38
-  })
-  label.anchor.set(0.5, 1)
-  label.position.set(W / 2, BOTTOM_Y - 18)
-  root.addChild(label)
+  const roleSpr = PIXI.Sprite.from('assets/scene/loading/role.png')
+  roleSpr.anchor.set(0.5)
+  roleSpr.x = ROLE_CENTER_X
+  roleSpr.y = ROLE_CENTER_Y
+  // 水平镜像
+  roleSpr.scale.x = -1
 
-  const barW = Math.round(W * 0.68)
-  const barH = 22
-  const barR = barH / 2
+  // 初始估算角色高度（用于先定位进度条，纹理就绪后更新）
+  let roleH = Math.round(W * 0.5)
 
-  const barRoot = new PIXI.Container()
-  barRoot.position.set(W / 2, BOTTOM_Y)
-  root.addChild(barRoot)
+  // ── 进度条尺寸常量 ──
+  const BAR_W = Math.round(W * 0.68)
+  const BAR_H = 24
+  const BAR_R = BAR_H / 2
+  const BAR_GAP = 60  // 角色图底部到进度条顶部的像素间距
 
-  // 轨道底部轻阴影
-  const trackShadow = new PIXI.Graphics()
-  trackShadow.beginFill(0x3d2918, 0.12)
-  trackShadow.drawRoundedRect(-barW / 2 + 1, 3, barW - 2, barH, barR)
-  trackShadow.endFill()
-  barRoot.addChild(trackShadow)
+  // 进度条容器
+  const barContainer = new PIXI.Container()
+  root.addChild(barContainer)
 
+  // 进度条轨道底色（奶白）
   const track = new PIXI.Graphics()
-  track.beginFill(0xeae2d6, 1)
-  track.drawRoundedRect(-barW / 2, 0, barW, barH, barR)
-  track.endFill()
-  track.lineStyle(1.5, 0xffffff, 0.55)
-  track.drawRoundedRect(-barW / 2, 0, barW, barH, barR)
-  track.lineStyle(1, 0xc4b5a2, 0.9)
-  track.drawRoundedRect(-barW / 2 + 0.5, 0.5, barW - 1, barH - 1, barR - 0.5)
-  barRoot.addChild(track)
+  barContainer.addChild(track)
 
+  // 斜条纹填充（用 mask 裁剪到圆角矩形内）
+  const fillMask = new PIXI.Graphics()
   const fill = new PIXI.Graphics()
-  barRoot.addChild(fill)
+  fill.mask = fillMask
+  barContainer.addChild(fillMask)
+  barContainer.addChild(fill)
 
-  const orange = PIXI.Sprite.from('assets/common/orange.png')
-  orange.anchor.set(0.5, 0.5)
-  const ORANGE_TARGET = Math.round(barH * 1.55)
-  const applyOrangeScale = () => {
-    const t = orange.texture
-    const tw = t.orig?.width || t.width
-    if (tw > 0) orange.scale.set(ORANGE_TARGET / tw)
+  // 黑色描边（最上层，覆盖在填充上方）
+  const trackBorder = new PIXI.Graphics()
+  barContainer.addChild(trackBorder)
+
+  // "正在加载静态资源" 文案：白字黑边
+  const labelFontSize = Math.round(W * 0.038)
+  const loadingLabel = new PIXI.Text('正在加载静态资源', {
+    fontFamily: 'sans-serif',
+    fontSize: labelFontSize,
+    fill: 0xffffff,
+    fontWeight: '600',
+    stroke: 0x000000,
+    strokeThickness: 3,
+  })
+  loadingLabel.anchor.set(0.5, 0)
+  root.addChild(loadingLabel)
+
+  // 根据角色高度更新进度条和文案的位置
+  const updateLayout = () => {
+    const roleBottom = ROLE_CENTER_Y + roleH / 2
+    const barTop = roleBottom + BAR_GAP
+    barContainer.position.set(W / 2 - BAR_W / 2, barTop)
+    loadingLabel.position.set(W / 2, barTop + BAR_H + 12)
+
+    // 重绘轨道底色
+    track.clear()
+    track.beginFill(0xfff5e8)
+    track.drawRoundedRect(0, 0, BAR_W, BAR_H, BAR_R)
+    track.endFill()
+
+    // 重绘黑色描边
+    trackBorder.clear()
+    trackBorder.lineStyle(2, 0x000000, 1)
+    trackBorder.drawRoundedRect(0, 0, BAR_W, BAR_H, BAR_R)
   }
-  if (orange.texture.valid) applyOrangeScale()
-  else orange.texture.baseTexture.once('loaded', applyOrangeScale)
-  barRoot.addChild(orange)
+  updateLayout()
 
-  const bindings: SignalBinding[] = []
-
-  const drawFill = (p: number) => {
-    const t = Math.max(0, Math.min(1, p))
-    const headX = -barW / 2 + barW * t
-    orange.position.set(headX, barH / 2)
-
+  // 绘制斜杠双色条纹进度填充
+  const drawFill = (progress: number) => {
+    const p = Math.max(0, Math.min(1, progress))
     fill.clear()
-    if (t <= 0) return
+    fillMask.clear()
+    if (p <= 0) return
 
-    const pw = Math.max(Math.round(barW * t), barR)
+    const fillW = Math.max(Math.round(BAR_W * p), BAR_R * 2)
 
-    fill.beginFill(0xd45f22, 1)
-    fill.drawRoundedRect(-barW / 2, 0, pw, barH, barR)
-    fill.endFill()
+    // mask：当前进度对应的圆角矩形
+    fillMask.beginFill(0xffffff)
+    fillMask.drawRoundedRect(0, 0, fillW, BAR_H, BAR_R)
+    fillMask.endFill()
 
-    fill.beginFill(0xff9a4a, 0.85)
-    fill.drawRoundedRect(-barW / 2, 0, pw, barH * 0.52, barR)
-    fill.endFill()
-
-    const glossH = Math.min(9, barH * 0.38)
-    fill.beginFill(0xffffff, 0.22)
-    fill.drawRoundedRect(-barW / 2 + 3, 2, Math.max(0, pw - 6), glossH, Math.max(2, barR - 4))
-    fill.endFill()
+    // 斜杠条纹（45度平行四边形，两色交替）
+    const STRIPE = 16
+    const color1 = 0xff8800  // 深橙
+    const color2 = 0xffb040  // 浅橙
+    let xOff = -BAR_H        // 从左侧斜角位置开始，确保起始边不缺角
+    let idx = 0
+    while (xOff < BAR_W + BAR_H) {
+      fill.beginFill(idx % 2 === 0 ? color1 : color2)
+      // 向右倾斜45度的平行四边形（斜杠"/"形条纹）
+      fill.drawPolygon([
+        xOff,               BAR_H,
+        xOff + BAR_H,       0,
+        xOff + BAR_H + STRIPE, 0,
+        xOff + STRIPE,      BAR_H,
+      ])
+      fill.endFill()
+      xOff += STRIPE * 2
+      idx++
+    }
   }
-
   drawFill(0)
+
+  // 纹理就绪后更新角色尺寸和布局（保留水平镜像）
+  const applyRoleSize = () => {
+    const t = roleSpr.texture
+    const tw = (t as any).orig?.width || t.width
+    const th = (t as any).orig?.height || t.height
+    if (tw > 0 && th > 0) {
+      const s = ROLE_TARGET_W / tw
+      roleSpr.scale.set(-s, s)  // x 为负数保持镜像
+      roleH = Math.round(th * s)
+      updateLayout()
+    }
+  }
+  if (roleSpr.texture.valid) applyRoleSize()
+  else roleSpr.texture.baseTexture.once('loaded', applyRoleSize)
+  root.addChild(roleSpr)
+
+  // ── 底部健康游戏忠告 ──
+  const sys = wx.getSystemInfoSync()
+  const bottomSafePx = sys.safeArea ? windowHeight - sys.safeArea.bottom : 0
+  const noticeBottomY = H - Math.max(bottomSafePx + 16, 24)
+  const noticeFontSize = Math.round(W * 0.028)
+  const noticeLineH = Math.round(noticeFontSize * 1.5)
+
+  const notice1 = new PIXI.Text('《健康游戏忠告》', {
+    fontFamily: 'sans-serif',
+    fontSize: noticeFontSize,
+    fill: 0x222222,
+    fontWeight: '500',
+    align: 'center',
+  })
+  notice1.anchor.set(0.5, 1)
+  notice1.position.set(W / 2, noticeBottomY - noticeLineH * 2)
+  root.addChild(notice1)
+
+  const notice2 = new PIXI.Text('抵制不良游戏，拒绝盗版游戏。注意自我保护，谨防受骗上当。', {
+    fontFamily: 'sans-serif',
+    fontSize: noticeFontSize,
+    fill: 0x333333,
+    align: 'center',
+  })
+  notice2.anchor.set(0.5, 1)
+  notice2.position.set(W / 2, noticeBottomY - noticeLineH)
+  root.addChild(notice2)
+
+  const notice3 = new PIXI.Text('适度游戏益脑，沉迷游戏伤身。合理安排时间，享受健康生活。', {
+    fontFamily: 'sans-serif',
+    fontSize: noticeFontSize,
+    fill: 0x333333,
+    align: 'center',
+  })
+  notice3.anchor.set(0.5, 1)
+  notice3.position.set(W / 2, noticeBottomY)
+  root.addChild(notice3)
+
+  // ── 颠颠弹跳动效：模拟骑车颠簸（幅度适度） ──
+  let elapsed = 0
+  _bounceTick = (delta: number) => {
+    elapsed += delta * 0.06
+    // 上下颠动（正弦波，幅度减小）
+    roleSpr.y = ROLE_CENTER_Y + Math.sin(elapsed * 3) * 3
+    // 轻微左右倾斜（相位差，更像骑车晃动，幅度减小）
+    roleSpr.rotation = Math.sin(elapsed * 3 + 0.3) * 0.015
+  }
+  ticker.add(_bounceTick)
 
   stage.addChild(root)
   try {
     wx.hideLoading?.()
   } catch (_) {}
 
+  // ROLE_SHEET_URL（capybara-idle.webp）不放入 Pixi Loader 预加载：
+  // 真机上 wechat-adapter 对 webp 的 Image 实现可能不触发 error 事件，
+  // 导致 loader.load() 回调永远不调用，卡死在 loading 界面。
   const allUrls = [
     ...(ASSET_URLS as unknown as string[]),
-    ROLE_SHEET_URL,
     ...(GAME_PRELOAD_URLS as unknown as string[])
   ]
   const toLoad = allUrls.filter(url => !loader.resources[url])
@@ -154,12 +240,12 @@ export async function show() {
     }
     let sum = 0
     for (const u of toLoad) sum += perFile.get(u) ?? 0
-    const fine = sum / toLoad.length
-    drawFill(fine)
+    drawFill(sum / toLoad.length)
   }
 
+  const bindings: SignalBinding[] = []
+
   if (toLoad.length > 0) {
-    // 仅用各资源的字节/完成进度；不要用 Loader.progress 参与显示（共享 Loader 可能仍保留上次 load 结束时的 100，会与 Math.max 叠出「一上来就不是 0」）
     bindings.push(
       loader.onStart.add(() => {
         for (const u of toLoad) perFile.set(u, 0)
@@ -199,14 +285,12 @@ export async function show() {
     drawFill(1)
   }
 
-  const roleBase = PIXI.BaseTexture.from(ROLE_SHEET_URL)
-  if (!roleBase.valid) {
-    await new Promise<void>(resolve => {
-      const done = () => resolve()
-      roleBase.once('loaded', done)
-      roleBase.once('error', done)
-    })
-  }
+  // 触发 capybara 贴图的异步加载，但不阻塞跳首页
+  PIXI.BaseTexture.from(ROLE_SHEET_URL)
+
+  // 额外延迟时间（毫秒），让 loading 页至少展示一段时间
+  const EXTRA_DELAY_MS = 30000
+  await new Promise<void>(resolve => setTimeout(resolve, EXTRA_DELAY_MS))
 
   navigator.go('home')
 }
@@ -215,6 +299,10 @@ export function hide() {
   try {
     wx.hideLoading?.()
   } catch (_) {}
+  if (_bounceTick) {
+    ticker.remove(_bounceTick)
+    _bounceTick = null
+  }
   if (!root) return
   root.destroy({ children: true })
   root = null

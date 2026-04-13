@@ -21,8 +21,6 @@ export interface DailyChallengeState {
   seed: number
   /** 当日是否已成功 */
   cleared: boolean
-  /** 维度组合 id（调试用） */
-  comboId?: string
 }
 
 export interface LlkSaveV1 {
@@ -75,9 +73,9 @@ const defaultSave = (): LlkSaveV1 => ({
   bestLevelClearedAt: 0,
   pairClearsTotal: 0,
   dailyChallengeClears: 0,
-  inventory: { hint: 3, refresh: 3, eliminate: 3 },
-  unlockedThemes: ['food'],
-  selectedTheme: 'food',
+  inventory: { hint: 1, refresh: 1, eliminate: 1 },
+  unlockedThemes: ['fruit'],
+  selectedTheme: 'fruit',
   streakDay: 0,
   lastSignInDayKey: '',
   circleRewarded: false,
@@ -116,8 +114,8 @@ export function loadLlkSave(): void {
         ? (p.unlockedThemes as GameThemeId[])
         : base.unlockedThemes
     })
-    if (!llk.unlockedThemes.includes('food')) {
-      llk.unlockedThemes.push('food')
+    if (!llk.unlockedThemes.includes('fruit')) {
+      llk.unlockedThemes.push('fruit')
     }
   } catch (_) {
     Object.assign(llk, defaultSave())

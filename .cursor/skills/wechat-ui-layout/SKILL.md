@@ -92,25 +92,31 @@ const BOTTOM_SAFE_DESIGN = MIN_BOTTOM_PX / dr
 
 ## 4. 背景图填充策略
 
-背景图可能短于超长屏，必须防止黑边且不变形：
+除非设计稿或需求**明确特殊说明**，任何页面背景图都按以下默认规范处理：
+
+- 宽度始终为屏幕宽度的 `100%`
+- 高度按图片原始宽高比自动缩放，**禁止拉伸变形**
+- 图片整体以屏幕中心线做**垂直居中**
+- 若超长屏导致上下有留白，使用与背景边缘接近的纯色做兜底，避免出现黑边
+
+背景图可能短于超长屏，默认按以上规则布局：
 
 ```ts
-// 背景图原始尺寸（设计稿）
+// 背景图原始尺寸（设计稿或素材尺寸）
 const BG_DESIGN_W = 750
-const BG_DESIGN_H = 1334  // 或实际图片高度
+const BG_DESIGN_H = 1334
 
-// 计算填充尺寸：宽度铺满，高度等比，若不足则垂直居中
+// 默认规则：宽度铺满屏幕，高度按比例缩放，整体垂直居中
 const bgScaleW = windowWidth / BG_DESIGN_W
-const bgW = windowWidth / dr          // 设计坐标中宽度 = 750
-const bgH = BG_DESIGN_H * bgScaleW / dr  // 等比高度（设计坐标）
+const bgW = windowWidth / dr
+const bgH = BG_DESIGN_H * bgScaleW / dr
 
 const bg = new PIXI.Sprite(bgTexture)
 bg.width = bgW
 bg.height = bgH
 bg.anchor.set(0.5)
 bg.x = 750 / 2
-// 垂直居中：若图片高度不够屏幕则居中，够则贴顶
-bg.y = Math.max(bgH / 2, designLayoutH / 2)
+bg.y = designLayoutH / 2
 ```
 
 **背景色兜底**：在背景图下方放一个纯色 Graphics，颜色取背景图边缘主色：
@@ -326,4 +332,7 @@ btn.hitArea = new PIXI.Rectangle(
 ```
 
 ## 12. 背景图
-尺寸建议 850 × 1700（留出冗余空间）
+
+- 默认规则：`100%` 屏幕宽度、等比缩放高度、垂直居中
+- 仅在设计稿明确要求时，才允许使用 `cover`、贴顶、贴底或局部裁切
+- 尺寸建议 `850 × 1700` 或更高（为超长屏预留冗余空间）

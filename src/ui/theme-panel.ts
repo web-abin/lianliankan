@@ -27,11 +27,43 @@ interface ThemeDef {
   unlockHint: string
 }
 
+// 5 个主题定义（与需求文档一一对应）
 const THEMES: ThemeDef[] = [
-  { id: 'food',    name: '美食主题 🍕', emoji: '🍕', icons: ['🍕','🍣','🍔','🍩'], unlockHint: '默认解锁' },
-  { id: 'fruit',   name: '水果季 🍊',  emoji: '🍓', icons: ['🍓','🍇','🍊','🍋'], unlockHint: '通关 15 关解锁' },
-  { id: 'kitchen', name: '小厨房 🍳',  emoji: '🍳', icons: ['🍳','🥘','🫕','🥗'], unlockHint: '完成 5 次每日挑战解锁' },
-  { id: 'forest',  name: '森友会 🐾',  emoji: '🌿', icons: ['🌿','🍄','🐿️','🦔'], unlockHint: '累计消除 200 对解锁' }
+  {
+    id: 'fruit',
+    name: '水果主题',
+    emoji: '🍊',
+    icons: ['🍊', '🍓', '🍉', '🍇'],
+    unlockHint: '默认解锁'
+  },
+  {
+    id: 'emotion',
+    name: '情绪主题',
+    emoji: '😤',
+    icons: ['💀', '🫠', '😱', '😭'],
+    unlockHint: '主线通关 15 关解锁'
+  },
+  {
+    id: 'forest-music',
+    name: '森林音乐会',
+    emoji: '🎵',
+    icons: ['🎵', '🎸', '🔔', '🐦'],
+    unlockHint: '完成 5 次每日挑战解锁'
+  },
+  {
+    id: 'plant',
+    name: '植物主题',
+    emoji: '🌿',
+    icons: ['🌿', '🌸', '🍄', '🍀'],
+    unlockHint: '累计消除 200 对解锁'
+  },
+  {
+    id: 'animal',
+    name: '动物主题',
+    emoji: '🐊',
+    icons: ['🐊', '🦅', '🐢', '🐒'],
+    unlockHint: '主线通关 40 关解锁'
+  }
 ]
 
 export function openThemePanel(
@@ -52,7 +84,7 @@ export function openThemePanel(
   wrap.addChild(root)
 
   const PANEL_W = 620
-  const PANEL_H = 700
+  const PANEL_H = 820
   const px = -PANEL_W / 2
   const py = -PANEL_H / 2
 

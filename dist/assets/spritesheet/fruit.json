@@ -1,0 +1,117 @@
+{
+  "frames": {
+    "fruit-01": {
+      "frame": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-02": {
+      "frame": { "x": 150, "y": 0, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-03": {
+      "frame": { "x": 300, "y": 0, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-04": {
+      "frame": { "x": 450, "y": 0, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-05": {
+      "frame": { "x": 600, "y": 0, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-06": {
+      "frame": { "x": 0, "y": 149, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-07": {
+      "frame": { "x": 150, "y": 149, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-08": {
+      "frame": { "x": 300, "y": 149, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-09": {
+      "frame": { "x": 450, "y": 149, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-10": {
+      "frame": { "x": 600, "y": 149, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-11": {
+      "frame": { "x": 0, "y": 298, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-12": {
+      "frame": { "x": 150, "y": 298, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-13": {
+      "frame": { "x": 300, "y": 298, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-14": {
+      "frame": { "x": 450, "y": 298, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    },
+    "fruit-15": {
+      "frame": { "x": 600, "y": 298, "w": 150, "h": 149 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 150, "h": 149 },
+      "sourceSize": { "w": 150, "h": 149 }
+    }
+  },
+  "meta": {
+    "app": "https://pixijs.com",
+    "version": "1.0",
+    "image": "fruit.png",
+    "format": "RGBA8888",
+    "size": { "w": 750, "h": 452 },
+    "scale": "1"
+  }
+}

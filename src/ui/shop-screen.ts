@@ -17,7 +17,11 @@ export interface ShopOptions {
   inventory: LlkInventory
   purchasedCapybara: boolean
   purchasedSoundPack: boolean
-  onBuyToolPack: () => void
+  /** 购买单个道具（各 100 金币） */
+  onBuyHint: () => void
+  onBuyRefresh: () => void
+  onBuyEliminate: () => void
+  /** 购买 1 点血量（50 金币） */
   onBuyBlood: () => void
   onBuyCapybara: () => void
   onBuySoundPack: () => void
@@ -179,16 +183,19 @@ export function openShopScreen(
     root.addChild(c)
     currentTabContainers.push(c)
 
+    // 道具列表（每个单独购买，各 100 金币；血量 50 金币）
     const tools = [
-      { name: '道具包', desc: '提示×3 刷新×1 消除×1', emoji: '🎁', stock: `当前：提示×${opts.inventory.hint}`, price: 300, onBuy: opts.onBuyToolPack },
-      { name: '血量', desc: '购买 1 点血量', emoji: '❤️', stock: '', price: 50, onBuy: opts.onBuyBlood }
+      { name: '提示道具', desc: '自动高亮一对可消除图块', emoji: '💡', stock: `库存：×${opts.inventory.hint}`, price: 100, onBuy: opts.onBuyHint },
+      { name: '刷新道具', desc: '将所有未消除图块重新洗牌', emoji: '🔀', stock: `库存：×${opts.inventory.refresh}`, price: 100, onBuy: opts.onBuyRefresh },
+      { name: '消除道具', desc: '自动直接消除一对可消除图块', emoji: '✨', stock: `库存：×${opts.inventory.eliminate}`, price: 100, onBuy: opts.onBuyEliminate },
+      { name: '血量', desc: '补充 1 点血量', emoji: '❤️', stock: '', price: 50, onBuy: opts.onBuyBlood }
     ]
 
     const CARD_W = PANEL_W - 60
-    const CARD_H = 130
+    const CARD_H = 110
 
     tools.forEach((tool, i) => {
-      const cy = CONTENT_Y + i * (CARD_H + 16)
+      const cy = CONTENT_Y + i * (CARD_H + 12)
 
       const card = new PIXI.Graphics()
       card.lineStyle(2, C_OUTLINE, 0.3)
@@ -200,35 +207,35 @@ export function openShopScreen(
       // 图标
       const iconBg = new PIXI.Graphics()
       iconBg.beginFill(C_SKY, 0.25)
-      iconBg.drawCircle(px + 70, cy + CARD_H / 2, 38)
+      iconBg.drawCircle(px + 66, cy + CARD_H / 2, 34)
       iconBg.endFill()
       c.addChild(iconBg)
-      const eT = new PIXI.Text(tool.emoji, { fontSize: 40 })
+      const eT = new PIXI.Text(tool.emoji, { fontSize: 36 })
       eT.anchor.set(0.5, 0.5)
-      eT.position.set(px + 70, cy + CARD_H / 2)
+      eT.position.set(px + 66, cy + CARD_H / 2)
       c.addChild(eT)
 
-      // 名称 + 描述
-      const nameT = txt(tool.name, 28, C_TEXT, '800')
+      // 名称 + 描述 + 库存
+      const nameT = txt(tool.name, 26, C_TEXT, '800')
       nameT.anchor.set(0, 0)
-      nameT.position.set(px + 120, cy + 18)
+      nameT.position.set(px + 112, cy + 12)
       c.addChild(nameT)
 
-      const descT = txt(tool.desc, 22, C_OUTLINE, '500')
+      const descT = txt(tool.desc, 20, C_OUTLINE, '500')
       descT.anchor.set(0, 0)
-      descT.position.set(px + 120, cy + 56)
+      descT.position.set(px + 112, cy + 46)
       c.addChild(descT)
 
       if (tool.stock) {
-        const stockT = txt(tool.stock, 20, C_GRAY, '600')
+        const stockT = txt(tool.stock, 19, C_GRAY, '600')
         stockT.anchor.set(0, 0)
-        stockT.position.set(px + 120, cy + 84)
+        stockT.position.set(px + 112, cy + 74)
         c.addChild(stockT)
       }
 
       // 购买按钮
-      const buyBtn = makeJellyBtn(`🪙 ${tool.price}`, 140, 44)
-      buyBtn.position.set(px + CARD_W - 90, cy + CARD_H / 2)
+      const buyBtn = makeJellyBtn(`🪙 ${tool.price}`, 130, 42)
+      buyBtn.position.set(px + CARD_W - 82, cy + CARD_H / 2)
       buyBtn.on('pointerdown', tool.onBuy)
       c.addChild(buyBtn)
     })

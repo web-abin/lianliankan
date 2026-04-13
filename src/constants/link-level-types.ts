@@ -1,5 +1,5 @@
 /**
- * 连连看主线关卡配置（依据 OpenSpec llk-gameplay-core：主线 JSON 仅 1…L 条）
+ * 连连看主线关卡配置
  */
 
 export type GravityDir = 'none' | 'left' | 'right' | 'up' | 'down'
@@ -10,9 +10,10 @@ export interface MainLineLevelEntry {
   rows: number
   /** 图案种类数（≤ 当前主题图集帧数） */
   kindCount: number
+  /** 重力方向，默认无 */
   gravity?: GravityDir
-  fog?: boolean
-  flip?: boolean
+  /** 是否启用果冻层机制 */
+  jelly?: boolean
 }
 
 export interface MainLineManifest {

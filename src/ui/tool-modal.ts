@@ -20,6 +20,10 @@ const TOOL_INFO: Record<ToolType, { name: string; emoji: string; desc: string; c
 
 export interface ToolModalOptions {
   toolType: ToolType
+  /** 今日剩余分享补给次数 */
+  remainingShare: number
+  /** 每日最大补给次数（用于显示格式如 "1/3"） */
+  maxShare: number
   onShare: () => void
   onShop: () => void
   onClose?: () => void
@@ -96,18 +100,34 @@ export function openToolModal(
   stockT.position.set(0, py + 210)
   root.addChild(stockT)
 
+  // 每日剩余补给次数提示（如 "补给次数：1/3"）
+  const shareCountStr = `补给次数：${opts.remainingShare}/${opts.maxShare}`
+  const shareCountT = txt(shareCountStr, 22, opts.remainingShare > 0 ? 0x2e7d32 : 0xb71c1c, '700')
+  shareCountT.anchor.set(0.5, 0)
+  shareCountT.position.set(0, py + 250)
+  root.addChild(shareCountT)
+
   // 两个并排按钮
   const BTN_W = (PANEL_W - 80 - 16) / 2
   const BTN_Y = py + PANEL_H - 108
 
-  // 分享获得
-  const shareBtn = makeJellyBtn('💬 分享好友获得', BTN_W, 58, C_GREEN_WX, 0xffffff, 22)
+  // 分享获得（若补给次数为 0 则置灰）
+  const shareDisabled = opts.remainingShare <= 0
+  const shareBtnColor = shareDisabled ? 0x9e9e9e : C_GREEN_WX
+  const shareBtn = makeJellyBtn('💬 分享好友获得', BTN_W, 58, shareBtnColor, 0xffffff, 22)
   shareBtn.position.set(-BTN_W / 2 - 8, BTN_Y)
-  shareBtn.on('pointerdown', () => { close(); opts.onShare() })
+  shareBtn.on('pointerdown', () => {
+    if (shareDisabled) {
+      wx.showToast?.({ title: '今日补给次数已用完', icon: 'none' })
+      return
+    }
+    close()
+    opts.onShare()
+  })
   root.addChild(shareBtn)
 
-  // 商店购买
-  const shopBtn = makeJellyBtn('🏪 商店 300🪙', BTN_W, 58, C_ORANGE, 0xffffff, 22)
+  // 商店购买（单个道具 100 金币）
+  const shopBtn = makeJellyBtn('🏪 商店 100🪙', BTN_W, 58, C_ORANGE, 0xffffff, 22)
   shopBtn.position.set(BTN_W / 2 + 8, BTN_Y)
   shopBtn.on('pointerdown', () => { close(); opts.onShop() })
   root.addChild(shopBtn)

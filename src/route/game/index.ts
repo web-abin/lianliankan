@@ -16,19 +16,19 @@ import { notifyMainLevelComplete, notifyDailyChallengeSuccess } from '~/game/gam
 import { llk, persistLlkSave } from '~/game/llk-save'
 import {
   COINS_MAIN_CLEAR_PER_LEVEL,
-  FEATURE_REWARDED_VIDEO,
-  SHARE_BONUS_ELIMINATE,
-  SHARE_BONUS_HINT,
-  SHARE_BONUS_REFRESH
+  COINS_DAILY_CHALLENGE,
+  SHARE_BONUS_PER_TOOL,
+  TOOL_SHARE_DAILY_CAP,
+  SHOP_PRICE_BLOOD,
+  SHOP_PRICE_CAPYBARA,
+  SHOP_PRICE_SOUND_PACK,
+  SHOP_PRICE_TOOL
 } from '~/game/economy-config'
 import { buildDailyLevelConfig, todayKey } from '~/game/daily-challenge'
 import { openSettingsModal } from '~/ui/settings-modal'
-import { openGiveUpModal }   from '~/ui/give-up-modal'
-import { openToolModal }     from '~/ui/tool-modal'
-import { openShopScreen }    from '~/ui/shop-screen'
-import {
-  SHOP_PRICE_BLOOD, SHOP_PRICE_CAPYBARA, SHOP_PRICE_SOUND_PACK, SHOP_PRICE_TOOL_PACK
-} from '~/game/economy-config'
+import { openGiveUpModal } from '~/ui/give-up-modal'
+import { openToolModal } from '~/ui/tool-modal'
+import { openShopScreen } from '~/ui/shop-screen'
 import { reportProgressToCloud } from '~/wx/supabase-sync'
 import { startGameBgm, stopGameBgm } from '~/game/llk-sound'
 
@@ -45,6 +45,17 @@ async function preload() {
   })
 }
 
+/** 获取当日某道具已分享次数（每日重置） */
+function getToolShareCount(toolType: 'hint' | 'refresh' | 'eliminate'): number {
+  const key = `llk_tool_share_${toolType}_${todayKey()}`
+  try { return Number(wx.getStorageSync(key) || 0) } catch (_) { return 0 }
+}
+
+function incToolShareCount(toolType: 'hint' | 'refresh' | 'eliminate') {
+  const key = `llk_tool_share_${toolType}_${todayKey()}`
+  try { wx.setStorageSync(key, String(getToolShareCount(toolType) + 1)) } catch (_) {}
+}
+
 export async function show(opts?: {
   level?: number
   mode?: 'main' | 'daily'
@@ -56,10 +67,7 @@ export async function show(opts?: {
     (mode === 'main' ? Math.max(1, llk.currentLevel) : 1)
 
   if (mode === 'main' && llk.hearts <= 0) {
-    wx.showToast?.({
-      title: '血量不足，可去商店购买或喊人',
-      icon: 'none'
-    })
+    wx.showToast?.({ title: '血量不足，可去商店购买或喊人', icon: 'none' })
     navigator.back()
     return
   }
@@ -77,8 +85,7 @@ export async function show(opts?: {
       llk.dailyChallenge = {
         dayKey: day,
         seed: built.seed,
-        cleared: false,
-        comboId: `${built.combo.dimA}+${built.combo.dimB}`
+        cleared: false
       }
       persistLlkSave()
     }
@@ -98,6 +105,57 @@ export async function show(opts?: {
   ;(root as PIXI.DisplayObject & { interactive?: boolean }).interactive = true
   ;(root as PIXI.DisplayObject & { interactiveChildren?: boolean }).interactiveChildren = true
 
+  // 打开商店（局内临时商店，只能买血量）
+  function openInGameShop() {
+    openShopScreen(stage, {
+      coins: llk.coins,
+      inventory: { ...llk.inventory },
+      purchasedCapybara: llk.purchasedCapybara,
+      purchasedSoundPack: llk.purchasedSoundPack,
+      onBuyHint: () => {
+        if (llk.coins < SHOP_PRICE_TOOL) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+        llk.coins -= SHOP_PRICE_TOOL
+        llk.inventory.hint += 1
+        persistLlkSave()
+        wx.showToast?.({ title: '提示道具 +1', icon: 'none' })
+      },
+      onBuyRefresh: () => {
+        if (llk.coins < SHOP_PRICE_TOOL) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+        llk.coins -= SHOP_PRICE_TOOL
+        llk.inventory.refresh += 1
+        persistLlkSave()
+        wx.showToast?.({ title: '刷新道具 +1', icon: 'none' })
+      },
+      onBuyEliminate: () => {
+        if (llk.coins < SHOP_PRICE_TOOL) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+        llk.coins -= SHOP_PRICE_TOOL
+        llk.inventory.eliminate += 1
+        persistLlkSave()
+        wx.showToast?.({ title: '消除道具 +1', icon: 'none' })
+      },
+      onBuyBlood: () => {
+        if (llk.coins < SHOP_PRICE_BLOOD) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+        llk.coins -= SHOP_PRICE_BLOOD
+        llk.hearts = Math.min(llk.maxHearts, llk.hearts + 1)
+        persistLlkSave()
+      },
+      onBuyCapybara: () => {
+        if (llk.purchasedCapybara) return
+        if (llk.coins < SHOP_PRICE_CAPYBARA) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+        llk.coins -= SHOP_PRICE_CAPYBARA
+        llk.purchasedCapybara = true
+        persistLlkSave()
+      },
+      onBuySoundPack: () => {
+        if (llk.purchasedSoundPack) return
+        if (llk.coins < SHOP_PRICE_SOUND_PACK) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+        llk.coins -= SHOP_PRICE_SOUND_PACK
+        llk.purchasedSoundPack = true
+        persistLlkSave()
+      }
+    })
+  }
+
   createGameScreen(root, {
     level,
     levelConfig,
@@ -108,78 +166,48 @@ export async function show(opts?: {
     coins: llk.coins,
     hearts: llk.hearts,
     maxHearts: llk.maxHearts,
+    toolInventory: { ...llk.inventory },
     onToolBeforeUse: i => {
       const toolTypes = ['hint', 'refresh', 'eliminate'] as const
       const toolType = toolTypes[i]
-      if (!toolType) return true // 第 3 格是分享，直接放行
-
-      const stockKey = toolType === 'hint' ? 'hint' : toolType === 'refresh' ? 'refresh' : 'eliminate'
-      if (llk.inventory[stockKey] <= 0) {
-        // 显示道具不足弹窗，提供分享/商店两条路径
+      if (llk.inventory[toolType] <= 0) {
+        // 道具不足：弹出补给弹窗
+        const sharedCount = getToolShareCount(toolType)
+        const remaining = Math.max(0, TOOL_SHARE_DAILY_CAP - sharedCount)
         openToolModal(stage, {
           toolType,
+          remainingShare: remaining,
+          maxShare: TOOL_SHARE_DAILY_CAP,
           onShare: () => {
+            if (remaining <= 0) {
+              wx.showToast?.({ title: '今日补给次数已用完', icon: 'none' })
+              return
+            }
             const anyWx = wx as typeof wx & {
               shareAppMessage?: (o: { title: string; query: string; success?: () => void }) => void
             }
             anyWx.shareAppMessage?.({
-              title: '卡皮巴拉连连看',
+              title: '开心点连连看，一起来玩！',
               query: '',
               success: () => {
-                llk.inventory.hint += SHARE_BONUS_HINT
-                llk.inventory.refresh += SHARE_BONUS_REFRESH
-                llk.inventory.eliminate += SHARE_BONUS_ELIMINATE
+                llk.inventory[toolType] += SHARE_BONUS_PER_TOOL
                 persistLlkSave()
-                wx.showToast?.({ title: `提示+${SHARE_BONUS_HINT} 刷新+${SHARE_BONUS_REFRESH} 消除+${SHARE_BONUS_ELIMINATE}`, icon: 'none' })
+                incToolShareCount(toolType)
+                wx.showToast?.({ title: `补给成功！${toolType === 'hint' ? '提示' : toolType === 'refresh' ? '刷新' : '消除'}+1`, icon: 'none' })
               }
             })
           },
-          onShop: () => {
-            openShopScreen(stage, {
-              coins: llk.coins,
-              inventory: { ...llk.inventory },
-              purchasedCapybara: llk.purchasedCapybara,
-              purchasedSoundPack: llk.purchasedSoundPack,
-              onBuyToolPack: () => {
-                if (llk.coins < SHOP_PRICE_TOOL_PACK) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
-                llk.coins -= SHOP_PRICE_TOOL_PACK
-                llk.inventory.hint += 3
-                llk.inventory.refresh += 1
-                llk.inventory.eliminate += 1
-                persistLlkSave()
-                wx.showToast?.({ title: '道具已入库存', icon: 'none' })
-              },
-              onBuyBlood: () => {
-                if (llk.coins < SHOP_PRICE_BLOOD) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
-                llk.coins -= SHOP_PRICE_BLOOD
-                llk.hearts = Math.min(llk.maxHearts, llk.hearts + 1)
-                persistLlkSave()
-              },
-              onBuyCapybara: () => {
-                if (llk.coins < SHOP_PRICE_CAPYBARA) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
-                llk.coins -= SHOP_PRICE_CAPYBARA
-                llk.purchasedCapybara = true
-                persistLlkSave()
-              },
-              onBuySoundPack: () => {
-                if (llk.coins < SHOP_PRICE_SOUND_PACK) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
-                llk.coins -= SHOP_PRICE_SOUND_PACK
-                llk.purchasedSoundPack = true
-                persistLlkSave()
-              }
-            })
-          }
+          onShop: openInGameShop
         })
         return false
       }
 
-      llk.inventory[stockKey] -= 1
+      llk.inventory[toolType] -= 1
       persistLlkSave()
       return true
     },
     onBack: () => navigator.back(),
     onPause: () => {
-      // 暂停/设置弹窗（局内模式）
       openSettingsModal(stage, {
         isInGame: true,
         soundOn: llk.soundOn,
@@ -195,47 +223,23 @@ export async function show(opts?: {
           } catch (_) { wx.showToast?.({ title: '请升级基础库', icon: 'none' }) }
         },
         onReplay: () => {
-          // 重玩：重新进入当前关
+          // 重玩本关：消耗 1 血（仅主线）
+          if (mode === 'main') {
+            llk.hearts = Math.max(0, llk.hearts - 1)
+            persistLlkSave()
+          }
           navigator.redirect('game', { level, mode })
         },
         onGiveUp: () => {
-          // 先弹挽回弹窗，让玩家确认
           openGiveUpModal(stage, {
             levelNum: level,
-            cleared: 0,   // TODO: 从 game-screen 获取实时进度
+            cleared: 0,
             total: (levelConfig.cols ?? 8) * (levelConfig.rows ?? 8) / 2,
-            onRetry: () => { /* 玩家选择再试，啥都不做，弹窗已关闭 */ },
+            onRetry: () => { /* 玩家选择再试，弹窗已关闭 */ },
             onGiveUp: () => {
-              if (mode === 'main') {
-                llk.hearts = Math.max(0, llk.hearts - 1)
-                persistLlkSave()
-              }
+              // 放弃挑战不扣血（主线和每日挑战均不扣血）
               navigator.back()
             }
-          })
-        }
-      })
-    },
-    onTool: i => {
-      if (i !== 3) return
-      if (FEATURE_REWARDED_VIDEO) {
-        wx.showToast?.({ title: '激励视频占位', icon: 'none' })
-        return
-      }
-      const anyWx = wx as typeof wx & {
-        shareAppMessage?: (o: { title: string; query: string; success?: () => void }) => void
-      }
-      anyWx.shareAppMessage?.({
-        title: '卡皮巴拉连连看',
-        query: '',
-        success: () => {
-          llk.inventory.hint += SHARE_BONUS_HINT
-          llk.inventory.refresh += SHARE_BONUS_REFRESH
-          llk.inventory.eliminate += SHARE_BONUS_ELIMINATE
-          persistLlkSave()
-          wx.showToast?.({
-            title: `提示+${SHARE_BONUS_HINT} 刷新+${SHARE_BONUS_REFRESH} 消除+${SHARE_BONUS_ELIMINATE}`,
-            icon: 'none'
           })
         }
       })
@@ -255,15 +259,18 @@ export async function show(opts?: {
           steps: payload.steps,
           clearedAt
         })
+        // 主线通关：无缝进入下一关
         navigator.redirect('game', { level: level + 1, mode: 'main' })
         return
       }
+      // 每日挑战通关
       if (llk.dailyChallenge) {
         llk.dailyChallenge.cleared = true
       }
+      llk.coins += COINS_DAILY_CHALLENGE
       notifyDailyChallengeSuccess()
       persistLlkSave()
-      wx.showToast?.({ title: '今日挑战完成', icon: 'none' })
+      wx.showToast?.({ title: `今日挑战完成！+${COINS_DAILY_CHALLENGE}🪙`, icon: 'none' })
       navigator.back()
     }
   })

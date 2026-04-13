@@ -7,13 +7,12 @@ import { stage, loader } from '~/core'
 import * as homeUI from '~/ui/home'
 import { ASSET_URLS } from '~/ui/home'
 import * as navigator from '~/navigator'
-import { llk, persistLlkSave, grantDeskDailyIfNeeded, claimSignInReward } from '~/game/llk-save'
+import { llk, persistLlkSave, claimSignInReward } from '~/game/llk-save'
 import {
   SHOP_PRICE_BLOOD,
   SHOP_PRICE_CAPYBARA,
   SHOP_PRICE_SOUND_PACK,
-  SHOP_PRICE_TOOL_PACK,
-  COINS_CIRCLE_ONCE,
+  SHOP_PRICE_TOOL,
   SHOUT_BLOOD_BONUS,
   SHOUT_DAILY_CAP
 } from '~/game/economy-config'
@@ -26,8 +25,6 @@ import { openThemePanel }       from '~/ui/theme-panel'
 import { openRankScreen }       from '~/ui/rank-screen'
 import { openShoutModal }       from '~/ui/shout-modal'
 import { openDailyRewardModal } from '~/ui/daily-reward-modal'
-import { openCircleGiftModal }  from '~/ui/circle-gift-modal'
-import { openAddDeskModal }     from '~/ui/add-desk-modal'
 import { fetchWorldRank }       from '~/wx/supabase-sync'
 
 let root: PIXI.Container | null = null
@@ -83,26 +80,7 @@ function init() {
       })
     },
 
-    // ── 圈子好礼 ─────────────────────────────────
-    onGift: () => {
-      openCircleGiftModal(stage, {
-        coinReward: COINS_CIRCLE_ONCE,
-        alreadyClaimed: llk.circleRewarded,
-        onJoin: () => {
-          if (llk.circleRewarded) {
-            wx.showToast?.({ title: '已领取过圈子好礼', icon: 'none' })
-            return
-          }
-          llk.coins += COINS_CIRCLE_ONCE
-          llk.circleRewarded = true
-          persistLlkSave()
-          wx.showToast?.({ title: `+${COINS_CIRCLE_ONCE} 金币`, icon: 'none' })
-          refreshHome()
-        }
-      })
-    },
-
-    // ── 喊人 ─────────────────────────────────────
+    // ── 喊好友 ───────────────────────────────────
     onShout: () => {
       openShoutModal(stage, {
         bloodBonus: SHOUT_BLOOD_BONUS,
@@ -126,23 +104,6 @@ function init() {
           persistLlkSave()
           wx.showToast?.({ title: `+${SHOUT_BLOOD_BONUS} 血`, icon: 'none' })
           refreshHome()
-        }
-      })
-    },
-
-    // ── 添加桌面 ──────────────────────────────────
-    onDesk: () => {
-      const alreadyToday = !grantDeskDailyIfNeeded()
-      openAddDeskModal(stage, {
-        todayReceived: alreadyToday,
-        onAdd: () => {
-          wx.addToFavorites?.({} as any)
-          if (!alreadyToday && grantDeskDailyIfNeeded()) {
-            wx.showToast?.({ title: '桌面进入 +50 金币 🌿', icon: 'none' })
-            refreshHome()
-          } else {
-            wx.showToast?.({ title: '今日已领过桌面奖励', icon: 'none' })
-          }
         }
       })
     },
@@ -177,14 +138,28 @@ function init() {
         inventory: { ...llk.inventory },
         purchasedCapybara: llk.purchasedCapybara,
         purchasedSoundPack: llk.purchasedSoundPack,
-        onBuyToolPack: () => {
-          if (llk.coins < SHOP_PRICE_TOOL_PACK) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
-          llk.coins -= SHOP_PRICE_TOOL_PACK
-          llk.inventory.hint += 3
+        onBuyHint: () => {
+          if (llk.coins < SHOP_PRICE_TOOL) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+          llk.coins -= SHOP_PRICE_TOOL
+          llk.inventory.hint += 1
+          persistLlkSave()
+          wx.showToast?.({ title: '提示道具 +1', icon: 'none' })
+          refreshHome()
+        },
+        onBuyRefresh: () => {
+          if (llk.coins < SHOP_PRICE_TOOL) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+          llk.coins -= SHOP_PRICE_TOOL
           llk.inventory.refresh += 1
+          persistLlkSave()
+          wx.showToast?.({ title: '刷新道具 +1', icon: 'none' })
+          refreshHome()
+        },
+        onBuyEliminate: () => {
+          if (llk.coins < SHOP_PRICE_TOOL) { wx.showToast?.({ title: '金币不足', icon: 'none' }); return }
+          llk.coins -= SHOP_PRICE_TOOL
           llk.inventory.eliminate += 1
           persistLlkSave()
-          wx.showToast?.({ title: '道具已入库存', icon: 'none' })
+          wx.showToast?.({ title: '消除道具 +1', icon: 'none' })
           refreshHome()
         },
         onBuyBlood: () => {

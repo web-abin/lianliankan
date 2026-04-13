@@ -1,18 +1,11 @@
 /**
- * 每日挑战：独立生成器、日级种子、固定重力 + 随机第二机制
+ * 每日挑战：日级种子，机制固定为"重力（方向随机）+ 果冻"
  */
 import type { MainLineLevelEntry } from '~/constants/link-level-types'
 import { loadMainLineManifest } from '~/game/link-level'
 
-export type DailyDim = 'fog' | 'gravity' | 'flip'
-
-export interface DailyCombo {
-  dimA: DailyDim
-  dimB: DailyDim
-  gravity: 'left' | 'right' | 'up' | 'down'
-}
-
 const GRAVITIES = ['left', 'right', 'up', 'down'] as const
+export type GravityDir = (typeof GRAVITIES)[number]
 
 function mulberry32(a: number) {
   return function () {
@@ -23,7 +16,7 @@ function mulberry32(a: number) {
   }
 }
 
-/** YYYYMMDD 本地 */
+/** 返回 YYYYMMDD（本地时区） */
 export function todayKey(): string {
   const d = new Date()
   const y = d.getFullYear()
@@ -32,15 +25,12 @@ export function todayKey(): string {
   return `${y}${m}${day}`
 }
 
-/**
- * 从主线第 L 关取最大棋盘尺寸；若 manifest 为空则默认 8×14
- */
+/** 从 manifest 中取最大棋盘；若为空默认 8×14 */
 export async function maxBoardFromManifest(): Promise<{ cols: number; rows: number }> {
   const m = await loadMainLineManifest()
-  const L = m.levels.length
-  if (L === 0) return { cols: 8, rows: 14 }
+  if (m.levels.length === 0) return { cols: 8, rows: 14 }
   let maxArea = 0
-  let entry = m.levels[L - 1]
+  let entry = m.levels[m.levels.length - 1]
   for (const e of m.levels) {
     const a = e.cols * e.rows
     if (a >= maxArea) {
@@ -52,12 +42,13 @@ export async function maxBoardFromManifest(): Promise<{ cols: number; rows: numb
 }
 
 /**
- * 生成当日挑战关卡参数（与主线 JSON 行结构兼容）
+ * 生成当日挑战关卡参数
+ * 机制固定：重力（方向由种子决定）+ 果冻
  */
 export async function buildDailyLevelConfig(
   dayKey: string,
   openIdSalt = ''
-): Promise<{ entry: MainLineLevelEntry; combo: DailyCombo; seed: number }> {
+): Promise<{ entry: MainLineLevelEntry; gravity: GravityDir; seed: number }> {
   const { cols, rows } = await maxBoardFromManifest()
   const seed =
     (Number(dayKey.replace(/\D/g, '').slice(0, 8)) * 1000003 +
@@ -65,28 +56,19 @@ export async function buildDailyLevelConfig(
     0
   const rnd = mulberry32(seed)
 
-  const dimA: DailyDim = 'gravity'
-  const dimB: DailyDim = rnd() < 0.5 ? 'fog' : 'flip'
-
-  const gdir = GRAVITIES[Math.floor(rnd() * GRAVITIES.length)]
+  // 重力方向随机，果冻固定开启
+  const gravity = GRAVITIES[Math.floor(rnd() * GRAVITIES.length)]
 
   const entry: MainLineLevelEntry = {
     id: `daily-${dayKey}`,
     cols,
     rows,
     kindCount: 15,
-    gravity: 'none',
-    fog: false,
-    flip: false
+    gravity,
+    jelly: true
   }
 
-  const combo: DailyCombo = { dimA, dimB, gravity: gdir }
-
-  if (dimA === 'gravity' || dimB === 'gravity') entry.gravity = gdir
-  if (dimA === 'fog' || dimB === 'fog') entry.fog = true
-  if (dimA === 'flip' || dimB === 'flip') entry.flip = true
-
-  return { entry, combo, seed }
+  return { entry, gravity, seed }
 }
 
 function hashStr(s: string): number {

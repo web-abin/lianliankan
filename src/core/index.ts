@@ -4,8 +4,6 @@ import * as PIXI from 'pixi.js'
 import {runInAction} from 'mobx'
 
 import * as store from './store'
-export * as sound from './sound'
-
 const sys = wx.getSystemInfoSync()
 const {
   devicePixelRatio,

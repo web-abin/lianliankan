@@ -211,21 +211,21 @@ export function openRankScreen(
       avatarT.position.set(px + 88, rowY + ROW_H / 2)
       listContainer.addChild(avatarT)
 
-      // 昵称
-      const nickname = row.nickname || `玩家${i + 1}`
-      const nameT = txt(nickname.slice(0, 8), 24, 0xeeffee, '600')
+      // 昵称（使用 WorldRankRow 的 name 字段）
+      const displayName = row.name || `玩家${i + 1}`
+      const nameT = txt(displayName.slice(0, 8), 24, 0xeeffee, '600')
       nameT.anchor.set(0, 0.5)
       nameT.position.set(px + 122, rowY + ROW_H / 2 - 10)
       listContainer.addChild(nameT)
 
-      // 关卡 + 步数
+      // 关卡 + 步数（使用 WorldRankRow 的 steps 字段）
       const levelT = txt(`第${row.level}关`, 26, C_ORANGE, '800')
       levelT.anchor.set(1, 0.5)
       levelT.position.set(px + LIST_W - 10, rowY + ROW_H / 2 - 10)
       listContainer.addChild(levelT)
 
-      if (row.bestSteps > 0) {
-        const stepsT = txt(`${row.bestSteps}步`, 20, 0x88cc88, '500')
+      if (row.steps > 0) {
+        const stepsT = txt(`${row.steps}步`, 20, 0x88cc88, '500')
         stepsT.anchor.set(1, 0.5)
         stepsT.position.set(px + LIST_W - 10, rowY + ROW_H / 2 + 14)
         listContainer.addChild(stepsT)
