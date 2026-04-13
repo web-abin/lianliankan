@@ -45,7 +45,7 @@ export async function show() {
   // ── 角色图：水平垂直居中于屏幕中心 ──
   const ROLE_CENTER_X = W / 2
   const ROLE_CENTER_Y = H / 2
-  const ROLE_TARGET_W = Math.round(W * 0.5)
+  const ROLE_TARGET_W = Math.round(W * 0.4)
 
   const roleSpr = PIXI.Sprite.from('assets/scene/loading/role.png')
   roleSpr.anchor.set(0.5)
@@ -289,7 +289,7 @@ export async function show() {
   PIXI.BaseTexture.from(ROLE_SHEET_URL)
 
   // 额外延迟时间（毫秒），让 loading 页至少展示一段时间
-  const EXTRA_DELAY_MS = 30000
+  const EXTRA_DELAY_MS = 1000
   await new Promise<void>(resolve => setTimeout(resolve, EXTRA_DELAY_MS))
 
   navigator.go('home')
