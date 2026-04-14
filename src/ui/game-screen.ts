@@ -13,7 +13,7 @@ import {
 import { FONT_FAMILY } from '~/constants/design-tokens'
 import type { MainLineLevelEntry } from '~/constants/link-level-types'
 import type { GameThemeId } from '~/game/game-hooks'
-import { notifyPairCleared } from '~/game/game-hooks'
+import { notifyPairCleared, resolveThemeGameBackground } from '~/game/game-hooks'
 import { applyGravity, type GravityTile } from '~/game/link-gravity'
 import { findHintPair, findPath } from '~/game/link-path'
 import {
@@ -25,8 +25,8 @@ import {
 import { playEliminationEffect } from '~/ui/link-effect'
 
 export const GAME_PRELOAD_URLS = [
-  'assets/scene/game/bg-game1.png',
-  'assets/scene/game/bg-game2.png',
+  'assets/theme/bg-fruit.jpg',
+  'assets/theme/bg-qingxu.webp',
   'assets/scene/game/chest.png',
   'assets/common/star.png',
   'assets/common/star2.png',
@@ -76,6 +76,7 @@ export function createGameScreen(
     level,
     levelConfig,
     tileTextures,
+    themeId = 'fruit',
     onBack: _onBack,
     onPause,
     onTool,
@@ -104,22 +105,33 @@ export function createGameScreen(
   ;(wrapper as PIXI.DisplayObject & { interactive?: boolean }).interactive = true
   ;(wrapper as PIXI.DisplayObject & { interactiveChildren?: boolean }).interactiveChildren = true
 
-  // 游戏界面背景
-  const bgTop = new PIXI.Sprite(PIXI.Texture.from('assets/scene/game/bg-game1.png'))
-  bgTop.position.set(0, 0)
-  bgTop.width = sw
-  bgTop.height = Math.round((351 * sw) / 800)
-  wrapper.addChild(bgTop)
-
-  // 木纹平铺背景
-  const woodTex = PIXI.Texture.from('assets/scene/game/bg-game2.png')
-  const woodRefW = woodTex.width > 1 ? woodTex.width : 800
-  const woodTileK = sw / woodRefW
-  const bgFill = new PIXI.TilingSprite(woodTex, sw, Math.max(sh - bgTop.height, 1))
-  bgFill.anchor.set(0, 0)
-  bgFill.position.set(0, bgTop.height - 10)
-  bgFill.tileTransform.scale.set(woodTileK, woodTileK)
+  // 游戏界面背景：按主题切换，宽度铺满屏幕，高度等比缩放并垂直居中
+  const themeBackground = resolveThemeGameBackground(themeId)
+  const bgFill = new PIXI.Graphics()
+  bgFill.beginFill(themeBackground.fallbackColor)
+  bgFill.drawRect(0, 0, sw, sh)
+  bgFill.endFill()
   wrapper.addChild(bgFill)
+
+  const bgSprite = new PIXI.Sprite(PIXI.Texture.from(themeBackground.imageUrl))
+  bgSprite.anchor.set(0.5, 0.5)
+  bgSprite.position.set(sw / 2, sh / 2)
+  wrapper.addChild(bgSprite)
+
+  const applyBackgroundLayout = () => {
+    const tex = bgSprite.texture
+    const texW = (tex as any).orig?.width || tex.width
+    const texH = (tex as any).orig?.height || tex.height
+    if (texW <= 0 || texH <= 0) return
+    const scale = sw / texW
+    bgSprite.width = sw
+    bgSprite.height = texH * scale
+  }
+  if (bgSprite.texture.valid) {
+    applyBackgroundLayout()
+  } else {
+    bgSprite.texture.baseTexture.once('loaded', applyBackgroundLayout)
+  }
 
   const root = new PIXI.Container()
   root.scale.set(dr)
@@ -253,15 +265,7 @@ export function createGameScreen(
   const boardLayer = new PIXI.Container()
   root.addChild(boardLayer)
 
-  const bgFillTopY = bgTop.height - 1
   const boardScreenY = root.y + boardY * dr
-  const boardScreenH = Math.max(1, Math.round(boardH * dr))
-  const boardBacking = new PIXI.TilingSprite(woodTex, sw, boardScreenH)
-  boardBacking.anchor.set(0, 0)
-  boardBacking.position.set(0, boardScreenY)
-  boardBacking.tileTransform.scale.set(woodTileK, woodTileK)
-  boardBacking.tilePosition.set(0, (bgFillTopY - boardScreenY) / woodTileK)
-  wrapper.addChildAt(boardBacking, 2)
 
   const fxLayer = new PIXI.Container()
   root.addChild(fxLayer)

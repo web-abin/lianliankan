@@ -53,9 +53,6 @@ export const ASSET_URLS = [
   'assets/button/range.png'
 ] as const
 
-/** 首页卡皮巴拉序列帧大图（待美术切图后替换为正式文件） */
-export const ROLE_SHEET_URL = 'assets/role/capybara-idle.webp'
-
 export interface HomeOptions {
   level?: number
   coins?: number
@@ -258,7 +255,7 @@ export function create(
   const titleW = Math.round(DESIGN_W * TITLE_WIDTH_W_RATIO)
   const titleSpr = S('assets/text/ka-pi-ba-la.png')
   titleSpr.width = titleW
-  titleSpr.height = Math.round((titleW / 700) * 376)
+  titleSpr.height = Math.round((titleW / 640) * 365)
   titleSpr.anchor.set(0.5, 0)
   titleSpr.position.set(DESIGN_W / 2, safeAreaTopPx + 200)
   root.addChild(titleSpr)

@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js'
-import { stage, loader, screen, tick, ticker, windowHeight } from '~/core'
-import { ASSET_URLS, ROLE_SHEET_URL } from '~/ui/home'
+import { DESIGN_REF_W, stage, loader, screen, safeAreaTopPx, tick, ticker, windowHeight } from '~/core'
+import { ASSET_URLS } from '~/ui/home'
 import { GAME_PRELOAD_URLS } from '~/ui/game-screen'
 import * as navigator from '~/navigator'
 
@@ -24,28 +24,37 @@ export async function show() {
   const W = screen.width
   const H = screen.height
 
-  // ── 背景图：宽度100%，高度等比缩放，垂直居中 ──
-  const bgSpr = PIXI.Sprite.from('assets/scene/loading/bg.png')
-  bgSpr.anchor.set(0.5)
-  bgSpr.x = W / 2
-  bgSpr.y = H / 2
-  const applyBgSize = () => {
-    const t = bgSpr.texture
+  // 页面纯色背景
+  const bg = new PIXI.Graphics()
+  bg.beginFill(0xc1e15f)
+  bg.drawRect(0, 0, W, H)
+  bg.endFill()
+  root.addChild(bg)
+
+  // 顶部标题图
+  const titleScale = W / DESIGN_REF_W
+  const titleTop = Math.round((safeAreaTopPx + 200) * titleScale)
+  const titleW = Math.round(420 * titleScale)
+  const titleSpr = PIXI.Sprite.from('assets/text/ka-pi-ba-la.png')
+  titleSpr.anchor.set(0.5, 0)
+  titleSpr.position.set(W / 2, titleTop)
+  const applyTitleSize = () => {
+    const t = titleSpr.texture
     const tw = (t as any).orig?.width || t.width
     const th = (t as any).orig?.height || t.height
     if (tw > 0 && th > 0) {
-      bgSpr.width = W
-      bgSpr.height = Math.round((W * th) / tw)
+      titleSpr.width = titleW
+      titleSpr.height = Math.round((titleW / 640) * 365)
     }
   }
-  if (bgSpr.texture.valid) applyBgSize()
-  else bgSpr.texture.baseTexture.once('loaded', applyBgSize)
-  root.addChild(bgSpr)
+  if (titleSpr.texture.valid) applyTitleSize()
+  else titleSpr.texture.baseTexture.once('loaded', applyTitleSize)
+  root.addChild(titleSpr)
 
   // ── 角色图：水平垂直居中于屏幕中心 ──
   const ROLE_CENTER_X = W / 2
   const ROLE_CENTER_Y = H / 2
-  const ROLE_TARGET_W = Math.round(W * 0.4)
+  const ROLE_TARGET_W = Math.min(Math.round(W * 0.3), 200)
 
   const roleSpr = PIXI.Sprite.from('assets/scene/loading/role.png')
   roleSpr.anchor.set(0.5)
@@ -61,7 +70,7 @@ export async function show() {
   const BAR_W = Math.round(W * 0.68)
   const BAR_H = 24
   const BAR_R = BAR_H / 2
-  const BAR_GAP = 60  // 角色图底部到进度条顶部的像素间距
+  const BAR_GAP = 16  // 角色图底部到进度条顶部的像素间距
 
   // 进度条容器
   const barContainer = new PIXI.Container()
@@ -221,7 +230,6 @@ export async function show() {
     wx.hideLoading?.()
   } catch (_) {}
 
-  // ROLE_SHEET_URL（capybara-idle.webp）不放入 Pixi Loader 预加载：
   // 真机上 wechat-adapter 对 webp 的 Image 实现可能不触发 error 事件，
   // 导致 loader.load() 回调永远不调用，卡死在 loading 界面。
   const allUrls = [
@@ -285,11 +293,8 @@ export async function show() {
     drawFill(1)
   }
 
-  // 触发 capybara 贴图的异步加载，但不阻塞跳首页
-  PIXI.BaseTexture.from(ROLE_SHEET_URL)
-
   // 额外延迟时间（毫秒），让 loading 页至少展示一段时间
-  const EXTRA_DELAY_MS = 1000
+  const EXTRA_DELAY_MS = 2000
   await new Promise<void>(resolve => setTimeout(resolve, EXTRA_DELAY_MS))
 
   navigator.go('home')

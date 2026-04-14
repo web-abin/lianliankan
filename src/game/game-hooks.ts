@@ -12,6 +12,11 @@ export interface ThemeAtlasPaths {
   jsonUrl: string
 }
 
+export interface ThemeBackgroundSpec {
+  imageUrl: string
+  fallbackColor: number
+}
+
 /**
  * 各主题图集路径
  * 当前均指向同一套占位图集，待美术切图后按主题替换
@@ -29,6 +34,29 @@ export function resolveThemeAtlasPaths(themeId: GameThemeId): ThemeAtlasPaths {
     case 'fruit':
     default:
       return { imageUrl: 'assets/spritesheet/food.png', jsonUrl: 'assets/spritesheet/food.json' }
+  }
+}
+
+/**
+ * 局内背景图资源
+ * 当前仅情绪主题使用独立背景，其余主题暂时共用水果季背景图。
+ */
+export function resolveThemeGameBackground(themeId: GameThemeId): ThemeBackgroundSpec {
+  switch (themeId) {
+    case 'emotion':
+      return {
+        imageUrl: 'assets/theme/bg-qingxu.webp',
+        fallbackColor: 0xb7e06e
+      }
+    case 'forest-music':
+    case 'plant':
+    case 'animal':
+    case 'fruit':
+    default:
+      return {
+        imageUrl: 'assets/theme/bg-fruit.jpg',
+        fallbackColor: 0xb8df7a
+      }
   }
 }
 
