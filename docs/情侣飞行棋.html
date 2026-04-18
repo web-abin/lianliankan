@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>💞 恋爱飞行棋 Pro</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+
+      :root {
+        --safe-area-bottom: env(safe-area-inset-bottom);
+      }
+
+      body {
+        font-family: 'PingFang SC', -apple-system, sans-serif;
+        background: #fff1f2;
+        touch-action: manipulation;
+        overflow-x: hidden;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .game-font {
+        font-family: 'ZCOOL KuaiLe', cursive;
+      }
+
+      /* 棋子跳跃动画 */
+      .piece {
+        transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        z-index: 100;
+        filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+      }
+
+      /* 响应式棋盘容器 */
+      .board-container {
+        position: relative;
+        width: 340px;
+        height: 480px;
+        margin: 0 auto;
+        transform-origin: top center;
+      }
+
+      /* 移动端适配：根据屏幕宽度缩放棋盘 */
+      @media (max-width: 375px) {
+        .board-container {
+          transform: scale(0.9);
+        }
+      }
+      @media (min-width: 400px) {
+        .board-container {
+          transform: scale(1.1);
+        }
+      }
+
+      .cell {
+        transition: transform 0.1s active;
+      }
+      .cell:active {
+        transform: scale(0.9);
+      }
+
+      .modal-blur {
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+
+      .active-turn {
+        animation: breathe 1.5s infinite ease-in-out;
+        border: 2px solid white;
+      }
+
+      @keyframes breathe {
+        0%,
+        100% {
+          transform: scale(1.1);
+          box-shadow: 0 0 15px rgba(244, 63, 94, 0.4);
+        }
+        50% {
+          transform: scale(1.05);
+          box-shadow: 0 0 5px rgba(244, 63, 94, 0.1);
+        }
+      }
+
+      .scale-up {
+        animation: scaleUp 0.3s ease-out forwards;
+      }
+      @keyframes scaleUp {
+        from {
+          transform: scale(0.8);
+          opacity: 0;
+        }
+        to {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body class="safe-p-bottom">
+    <div
+      id="app"
+      class="w-full max-w-md mx-auto min-h-screen flex flex-col items-center p-4"
+    >
+      <div
+        v-if="view === 'home'"
+        class="w-full space-y-6 pt-10 animate-in fade-in zoom-in duration-500"
+      >
+        <div class="text-center mb-8">
+          <h1 class="game-font text-5xl text-rose-500 italic drop-shadow-md">
+            恋爱飞行棋
+          </h1>
+          <p class="text-rose-300 text-xs mt-2 tracking-[0.2em] font-bold">
+            ROMANTIC GAME V3.0
+          </p>
+        </div>
+        <div class="grid gap-4 px-4">
+          <button
+            v-for="(mode, key) in modes"
+            :key="key"
+            @click="initGame(key)"
+            class="group relative bg-white py-5 rounded-[2rem] shadow-lg border-b-4 border-rose-100 active:translate-y-1 active:border-b-0 transition-all flex items-center justify-between px-8"
+          >
+            <div class="flex items-center gap-4">
+              <span class="text-3xl">{{ mode.icon }}</span>
+              <span class="font-bold text-rose-600 text-lg"
+                >{{ mode.name }}</span
+              >
+            </div>
+            <span class="text-rose-200">❯</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="view === 'game'" class="w-full flex flex-col items-center">
+        <header class="w-full flex justify-between items-center mb-4 z-10">
+          <button
+            @click="goHome"
+            class="w-10 h-10 rounded-2xl bg-white shadow-md flex items-center justify-center text-rose-400 text-xl"
+          >
+            🏠
+          </button>
+          <div
+            class="px-5 py-1.5 bg-white/80 rounded-full shadow-sm backdrop-blur-md"
+          >
+            <span class="game-font text-rose-500 text-sm"
+              >{{ modes[currentMode].name }}</span
+            >
+          </div>
+          <button
+            v-if="currentMode === 'custom'"
+            @click="toggleEditMode"
+            :class="['px-4 py-2 rounded-xl font-bold shadow-md transition-all text-xs', isEditing ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white']"
+          >
+            {{ isEditing ? '完成' : '编辑' }}
+          </button>
+          <div v-else class="w-10"></div>
+        </header>
+
+        <div
+          class="board-container bg-white/40 rounded-[3rem] p-4 shadow-inner border border-white/50 mb-4"
+        >
+          <div
+            v-for="(cell, index) in board"
+            :key="index"
+            @click="handleCellClick(index)"
+            class="cell absolute w-10 h-10 rounded-xl flex flex-col items-center justify-center shadow-sm"
+            :class="[getCellBg(index)]"
+            :style="{ left: cell.x + 'px', top: cell.y + 'px' }"
+          >
+            <span v-if="index === 0" class="text-[10px] font-black text-white"
+              >GO</span
+            >
+            <span v-else-if="index === 39" class="text-lg">🏁</span>
+            <template v-else>
+              <span
+                class="text-[10px] font-bold"
+                :class="cell.task || currentMode !== 'custom' ? 'text-white/60' : 'text-rose-200'"
+                >{{ index }}</span
+              >
+              <span
+                v-if="currentMode === 'custom' && cell.task"
+                class="text-[8px] text-white"
+                >★</span
+              >
+            </template>
+
+            <template v-if="!isEditing">
+              <div
+                v-if="playerPos[0] === index"
+                class="piece absolute -top-4 -left-1 text-3xl"
+              >
+                👧
+              </div>
+              <div
+                v-if="playerPos[1] === index"
+                class="piece absolute -bottom-4 -right-1 text-3xl"
+              >
+                👦
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div
+          v-show="!isEditing"
+          class="w-full bg-white rounded-[2.5rem] p-6 shadow-xl border-t-4 border-rose-50"
+        >
+          <div class="flex justify-around items-center mb-6">
+            <div class="flex flex-col items-center gap-2">
+              <div
+                :class="['w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-lg transition-all', currentPlayer === 0 ? 'bg-rose-500 text-white active-turn' : 'bg-gray-100 text-gray-400 grayscale opacity-50']"
+              >
+                👧
+              </div>
+              <span
+                class="font-bold text-[10px]"
+                :class="currentPlayer === 0 ? 'text-rose-600' : 'text-gray-400'"
+                >女生回合</span
+              >
+            </div>
+
+            <div class="flex flex-col items-center">
+              <div
+                class="text-5xl mb-1 transition-transform"
+                :class="{ 'animate-bounce': isRolling }"
+              >
+                {{ isRolling ? '🎲' : diceIcons[diceValue - 1] }}
+              </div>
+            </div>
+
+            <div class="flex flex-col items-center gap-2">
+              <div
+                :class="['w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-lg transition-all', currentPlayer === 1 ? 'bg-sky-500 text-white active-turn' : 'bg-gray-100 text-gray-400 grayscale opacity-50']"
+              >
+                👦
+              </div>
+              <span
+                class="font-bold text-[10px]"
+                :class="currentPlayer === 1 ? 'text-sky-600' : 'text-gray-400'"
+                >男生回合</span
+              >
+            </div>
+          </div>
+
+          <button
+            @click="roll"
+            :disabled="isRolling"
+            class="w-full bg-rose-500 text-white py-5 rounded-[1.5rem] font-bold text-xl shadow-lg active:scale-95 disabled:opacity-50 transition-all border-b-4 border-rose-700"
+          >
+            {{ isRolling ? '正在掷骰子...' : '掷骰子' }}
+          </button>
+        </div>
+
+        <div
+          v-if="isEditing"
+          class="text-center p-4 bg-white/80 rounded-2xl border-2 border-dashed border-rose-200 animate-pulse"
+        >
+          <p class="text-rose-500 text-sm font-bold">
+            🛠️ 点击棋盘格设置专属任务
+          </p>
+          <button
+            @click="clearCustomBoard"
+            class="mt-2 text-xs text-gray-400 underline"
+          >
+            清空数据
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="modal.show"
+        class="fixed inset-0 z-[200] flex items-center justify-center p-6 modal-blur bg-black/20"
+      >
+        <div
+          class="bg-white rounded-[2.5rem] p-8 w-full max-w-xs text-center shadow-2xl scale-up border-4 border-rose-50"
+        >
+          <div class="text-6xl mb-4">{{ modal.icon }}</div>
+          <h3 class="text-xl font-bold text-gray-800 mb-4">
+            {{ modal.title }}
+          </h3>
+          <div class="max-h-48 overflow-y-auto mb-6">
+            <p
+              class="text-gray-600 font-medium text-lg leading-relaxed whitespace-pre-wrap"
+            >
+              {{ modal.content }}
+            </p>
+          </div>
+          <button
+            @click="modal.show = false"
+            class="w-full bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg active:scale-95"
+          >
+            任务完成
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="customInput.show"
+        class="fixed inset-0 z-[200] flex items-center justify-center p-6 modal-blur bg-black/60"
+      >
+        <div
+          class="bg-white rounded-[2rem] p-6 w-full max-w-xs shadow-2xl scale-up"
+        >
+          <h3 class="font-bold text-rose-500 mb-4 text-center">
+            第 {{ customInput.index }} 格任务
+          </h3>
+          <textarea
+            v-model="customInput.text"
+            class="w-full h-32 p-4 bg-rose-50/30 border-2 border-rose-100 rounded-2xl mb-4 text-sm outline-none focus:border-rose-300"
+            placeholder="在此输入你的创意任务..."
+          ></textarea>
+          <div class="flex gap-2">
+            <button
+              @click="customInput.show = false"
+              class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-400"
+            >
+              取消
+            </button>
+            <button
+              @click="saveCustom"
+              class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold shadow-md"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const { createApp, ref } = Vue
+
+      createApp({
+        setup() {
+          const view = ref('home')
+          const currentMode = ref('')
+          const playerPos = ref([0, 0])
+          const currentPlayer = ref(0)
+          const diceValue = ref(1)
+          const isRolling = ref(false)
+          const isEditing = ref(false)
+          const diceIcons = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
+          const modal = ref({ show: false, title: '', content: '', icon: '' })
+          const customInput = ref({ show: false, index: null, text: '' })
+
+          // 任务触发格(紫色) 60%
+          // 双人挑战格（绿色）挑战失败了会进行一个随机的双人惩罚 10%
+          // 真心话（粉色） 20%
+          // 愿望格子（金色） 10%
+          // --- 独立题库 ---
+          const libraries = {
+            t1: {
+              task: [
+                '互相深情对视15秒，先笑的人亲对方一下',
+                '给对方剥一个水果',
+                '为对方捏捏肩膀',
+                '夸对方三个优点'
+              ],
+              test: [
+                '说出对方最喜欢的口红色号/游戏',
+                '对方最想去旅游的地方是哪里？'
+              ],
+              truth: [
+                '你最喜欢对方身上的什么味道？',
+                '你第一次对对方心动是什么时候？',
+                '你最想和对方一起做的一件事是什么？',
+                '对方做过最让你感动的事是什么？'
+              ],
+              wish: ['满足对方一个微小愿望', '倒一杯温水给对方'],
+              icon: '🍭'
+            },
+            t2: {
+              task: [
+                '给对方一个长达30秒的拥抱',
+                '十指紧扣对视',
+                '帮对方整理头发',
+                '背着对方走一圈'
+              ],
+              test: ['我们第一次约会是在哪里？', '对方的生日是哪一天？'],
+              truth: [
+                '你有没有偷偷看过对方的手机？',
+                '你最嫉妒对方身边的谁？',
+                '你觉得对方最可爱的习惯是什么？',
+                '你有什么话一直想说但没说出口？'
+              ],
+              wish: ['输家今天洗碗', '答应对方一个合理的小要求'],
+              icon: '🎨'
+            },
+            t3: {
+              task: [
+                '说出你最喜欢对方的三个瞬间',
+                '公主抱对方',
+                '合拍一张搞怪的照片',
+                '深情告白30秒'
+              ],
+              test: ['对方最讨厌吃的蔬菜是什么？', '说出对方手机尾号'],
+              truth: [
+                '你觉得我们之间最大的默契是什么？',
+                '如果重新选择，你还会选我吗？',
+                '你最想改变对方的一个习惯是什么？',
+                '你最珍惜我们在一起的哪个瞬间？'
+              ],
+              wish: ['发一条关于对方的动态', '满足对方一个长久以来的小心愿'],
+              icon: '🎈'
+            },
+            naughty: {
+              task: [
+                '脱一件衣服/裤子（没有就不用啦[偷笑]）',
+                '种一个超过10秒的”草莓”（吻痕）',
+                '亲吻对方脸颊10秒',
+                '在对方耳边哈气并表白',
+                '亲吻对方的手背',
+                '亲吻对方的锁骨',
+                '咬一下对方的肩膀',
+                '轻咬对方耳朵',
+                '用舌尖绕着对方的耳朵画圈',
+                '解开对方的一颗扣子',
+                '让对方闭上眼，你选择一个部位亲吻三下',
+                '互相交换一件贴身物品佩戴',
+                '说出一句最想对对方说的调情话',
+                '坐在对方的大腿上，贴着脸表白',
+                '从背后抱住对方，并把手伸进对方的衣服里（停留10秒）',
+                '亲吻对方的足尖',
+                '让对方感受到你的心跳',
+                '对着对方展示你最性感的眼神',
+                '轻轻撕咬对方的嘴唇',
+                '帮对方脱掉袜子'
+              ],
+              test: ['说出你觉得对方最性感的瞬间', '对方最敏感的部位是哪里？'],
+              truth: [
+                '说出最敏感的部位在哪里？',
+                '说出最喜欢哪种接吻方式？',
+                '说出对方做过最让你脸红的事是什么？',
+                '说出你有什么秘密的幻想没告诉过对方？',
+                '说出最喜欢的内衣/内裤颜色？',
+                '描述一下你最害羞的一个幻想',
+                '说出觉得对方什么时候最迷人？',
+                '说出最希望对方怎么称呼你（私下里）？',
+                '说出最喜欢的姿势/场景（如果有的话）？',
+                '说出对方身上哪种味道让你最着迷？',
+                '说出一个你对对方最“色”的想法。'
+              ],
+              wish: [
+                '赢家指定今晚的一个特殊流程',
+                '输家要穿上赢家指定的“特殊”服装',
+                '赢家可以要求对方在一个特殊地点亲吻',
+                '输家要对赢家做一件“不可描述”的事情',
+                '赢家可以解锁一个新的互动动作',
+                '输家跳个性感的舞蹈'
+              ],
+              icon: '🔞'
+            }
+          }
+
+          const modes = {
+            t1: { name: '甜蜜互动（心动瞬间）', icon: '🍭' },
+            t2: { name: '甜蜜互动（浓情蜜意）', icon: '🎨' },
+            t3: { name: '甜蜜互动（深情默契）', icon: '🎈' },
+            naughty: { name: '羞羞飞行棋', icon: '🔞' },
+            custom: { name: '自定义飞行棋', icon: '⚙️' }
+          }
+
+          const board = ref([])
+
+          const initBoard = () => {
+            const path = []
+            const startX = 290,
+              startY = 10,
+              gap = 46
+            // 螺旋路径算法适配移动端宽度
+            for (let i = 0; i < 7; i++)
+              path.push({ x: startX - i * gap, y: startY })
+            for (let i = 1; i < 9; i++)
+              path.push({ x: startX - 6 * gap, y: startY + i * gap })
+            for (let i = 1; i < 7; i++)
+              path.push({ x: startX - 6 * gap + i * gap, y: startY + 8 * gap })
+            for (let i = 1; i < 7; i++)
+              path.push({ x: startX, y: startY + 8 * gap - i * gap })
+            for (let i = 1; i < 5; i++)
+              path.push({ x: startX - i * gap, y: startY + 2 * gap })
+            for (let i = 1; i < 5; i++)
+              path.push({ x: startX - 4 * gap, y: startY + 2 * gap + i * gap })
+            for (let i = 1; i < 3; i++)
+              path.push({ x: startX - 4 * gap + i * gap, y: startY + 6 * gap })
+            for (let i = 1; i < 3; i++)
+              path.push({ x: startX - 2 * gap, y: startY + 6 * gap - i * gap })
+            path.push({ x: startX - 3 * gap, y: startY + 4 * gap })
+
+            const types = [
+              ...Array(23).fill('task'),
+              ...Array(4).fill('test'),
+              ...Array(8).fill('truth'),
+              ...Array(3).fill('wish')
+            ]
+            for (let i = types.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1))
+              ;[types[i], types[j]] = [types[j], types[i]]
+            }
+
+            board.value = path.map((c, i) => ({
+              ...c,
+              type: i === 0 ? 'start' : i === 39 ? 'end' : types.pop(),
+              task: ''
+            }))
+          }
+
+          const initGame = (mode) => {
+            currentMode.value = mode
+            view.value = 'game'
+            playerPos.value = [0, 0]
+            currentPlayer.value = 0
+            isEditing.value = false
+            initBoard()
+
+            if (mode === 'custom') {
+              const saved = localStorage.getItem('couple_board_v3')
+              if (saved) {
+                const data = JSON.parse(saved)
+                data.forEach((t, i) => {
+                  if (t && board.value[i]) board.value[i].task = t
+                })
+              }
+              if (!board.value.some((c) => c.task)) isEditing.value = true
+            }
+          }
+
+          const getCellBg = (i) => {
+            if (i === 0) return 'bg-rose-500 shadow-rose-200'
+            if (i === 39) return 'bg-rose-600 shadow-rose-300'
+            if (currentMode.value === 'custom') {
+              return board.value[i].task
+                ? 'bg-rose-400'
+                : 'bg-white border-2 border-rose-50'
+            }
+            const colors = {
+              task: 'bg-purple-400',
+              test: 'bg-emerald-400',
+              truth: 'bg-pink-400',
+              wish: 'bg-amber-400'
+            }
+            return colors[board.value[i].type] || 'bg-white'
+          }
+
+          const roll = () => {
+            if (isRolling.value) return
+            isRolling.value = true
+            let count = 0
+            const t = setInterval(() => {
+              diceValue.value = Math.floor(Math.random() * 6) + 1
+              if (++count > 12) {
+                clearInterval(t)
+                isRolling.value = false
+                move()
+              }
+            }, 70)
+          }
+
+          // 核心：逐格移动逻辑
+          const move = async () => {
+            let pIdx = currentPlayer.value
+            const steps = diceValue.value
+
+            for (let i = 0; i < steps; i++) {
+              if (playerPos.value[pIdx] >= 39) break
+              playerPos.value[pIdx]++
+              // 每步停顿300ms，配合CSS transition形成动画
+              await new Promise((r) => setTimeout(r, 300))
+            }
+
+            setTimeout(() => triggerEvent(playerPos.value[pIdx]), 200)
+          }
+
+          const triggerEvent = (pos) => {
+            const cell = board.value[pos]
+            const activePlayer = currentPlayer.value === 0 ? '女生' : '男生'
+
+            if (pos === 39) {
+              modal.value = {
+                show: true,
+                title: '🎉 到达终点！',
+                content: `恭喜 ${activePlayer} 获得最终胜利！\n对方要接受一个终极愿望惩罚哦~`,
+                icon: '🏆'
+              }
+              return
+            }
+
+            if (currentMode.value === 'custom') {
+              if (cell.task) {
+                modal.value = {
+                  show: true,
+                  title: `${activePlayer}的任务`,
+                  content: cell.task,
+                  icon: '📝'
+                }
+                currentPlayer.value = currentPlayer.value === 0 ? 1 : 0
+              } else {
+                // 自定义模式空格子：直接切下一个人
+                currentPlayer.value = currentPlayer.value === 0 ? 1 : 0
+              }
+            } else {
+              const lib = libraries[currentMode.value]
+              const list = lib[cell.type] || lib.task
+              const task = list[Math.floor(Math.random() * list.length)]
+              const icons = { task: '💜', test: '💚', truth: '💗', wish: '💛' }
+              modal.value = {
+                show: true,
+                title: `${activePlayer}的任务`,
+                content: task,
+                icon: icons[cell.type] || '✨'
+              }
+              currentPlayer.value = currentPlayer.value === 0 ? 1 : 0
+            }
+          }
+
+          const handleCellClick = (i) => {
+            if (
+              currentMode.value === 'custom' &&
+              isEditing.value &&
+              i !== 0 &&
+              i !== 39
+            ) {
+              customInput.value = {
+                show: true,
+                index: i,
+                text: board.value[i].task
+              }
+            }
+          }
+
+          const saveCustom = () => {
+            board.value[customInput.value.index].task = customInput.value.text
+            customInput.value.show = false
+            localStorage.setItem(
+              'couple_board_v3',
+              JSON.stringify(board.value.map((c) => c.task))
+            )
+          }
+
+          const clearCustomBoard = () => {
+            if (confirm('确定清空所有自定义内容吗？')) {
+              board.value.forEach((c) => (c.task = ''))
+              localStorage.removeItem('couple_board_v3')
+            }
+          }
+
+          const toggleEditMode = () => {
+            isEditing.value = !isEditing.value
+            if (!isEditing.value) {
+              playerPos.value = [0, 0]
+              currentPlayer.value = 0
+            }
+          }
+
+          const goHome = () => {
+            if (isEditing.value && !confirm('内容未保存，确定退出？')) return
+            view.value = 'home'
+          }
+
+          return {
+            view,
+            modes,
+            currentMode,
+            board,
+            playerPos,
+            currentPlayer,
+            diceValue,
+            isRolling,
+            diceIcons,
+            modal,
+            customInput,
+            isEditing,
+            initGame,
+            getCellBg,
+            roll,
+            handleCellClick,
+            saveCustom,
+            clearCustomBoard,
+            toggleEditMode,
+            goHome
+          }
+        }
+      }).mount('#app')
+    </script>
+  </body>
+</html>

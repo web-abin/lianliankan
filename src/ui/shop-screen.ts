@@ -7,8 +7,8 @@ import * as PIXI from 'pixi.js'
 import { windowWidth, windowHeight, DESIGN_REF_W, designLayoutH } from '~/core'
 import {
   C_OUTLINE, C_PANEL, C_ORANGE, C_SKY, C_YELLOW, C_TEXT, C_GRAY, C_BG,
-  drawPanel, makeOverlay, makeJellyBtn, makeCloseBtn, makeTabCapsule,
-  bounceIn, txt, txtWrap
+  makePanelBg, panelPad, makeOverlay, makeJellyBtn, makeTabCapsule,
+  bounceIn, bounceOut, txt
 } from '~/ui/ui-kit'
 import type { LlkInventory } from '~/game/llk-save'
 
@@ -39,7 +39,8 @@ export function openShopScreen(
 
   const wrap = new PIXI.Container()
   ;(wrap as any).interactive = true
-  wrap.addChild(makeOverlay(sw, sh))
+  const dim = makeOverlay(sw, sh)
+  wrap.addChild(dim)
 
   const root = new PIXI.Container()
   root.position.set(sw / 2, sh / 2)
@@ -47,20 +48,26 @@ export function openShopScreen(
 
   // 全屏面板尺寸
   const PANEL_W = DESIGN_W - 40
+  const pad = panelPad(PANEL_W)
+  const contentW = PANEL_W - 2 * pad.lr
   const PANEL_H = DESIGN_H - 120
   const px = -PANEL_W / 2
   const py = -PANEL_H / 2
+  const cLeft = px + pad.lr
+  const cRight = px + PANEL_W - pad.lr
 
   // 面板
-  const panel = new PIXI.Graphics()
-  drawPanel(panel, PANEL_W, PANEL_H, 28)
+  const panel = makePanelBg(PANEL_W, PANEL_H, close)
   panel.position.set(px, py)
   root.addChild(panel)
+
+  const cTop = py + pad.top
+  const cBot = py + PANEL_H - pad.bot
 
   // ── 顶部标题区 ──────────────────────────────────
   const titleT = txt('🏪  商店', 38, C_TEXT, '900')
   titleT.anchor.set(0.5, 0)
-  titleT.position.set(0, py + 28)
+  titleT.position.set(0, cTop)
   root.addChild(titleT)
 
   // 金币显示胶囊
@@ -70,12 +77,12 @@ export function openShopScreen(
   coinCap.endFill()
   coinCap.lineStyle(2, C_OUTLINE, 0.6)
   coinCap.drawRoundedRect(-80, -18, 160, 36, 18)
-  coinCap.position.set(PANEL_W / 2 - 100, py + 46)
+  coinCap.position.set(cRight - 80, cTop + 18)
   root.addChild(coinCap)
 
   const coinT = txt(`🪙 ${opts.coins}`, 24, C_OUTLINE, '800')
   coinT.anchor.set(0.5, 0.5)
-  coinT.position.set(PANEL_W / 2 - 100, py + 46)
+  coinT.position.set(cRight - 80, cTop + 18)
   root.addChild(coinT)
 
   // ── 标签页 ──────────────────────────────────────
@@ -85,12 +92,11 @@ export function openShopScreen(
     0, TAB_W, TAB_H,
     (i) => showTab(i)
   )
-  tabs.position.set(-(TAB_W * 3 + 8) / 2, py + 80)
+  tabs.position.set(-(TAB_W * 3 + 8) / 2, cTop + 50)
   root.addChild(tabs)
 
   // ── 内容区容器 ──────────────────────────────────
-  const CONTENT_Y = py + 140
-  const CONTENT_H = PANEL_H - 160
+  const CONTENT_Y = cTop + 110
 
   let currentTabContainers: PIXI.Container[] = []
 
@@ -110,7 +116,6 @@ export function openShopScreen(
     root.addChild(c)
     currentTabContainers.push(c)
 
-    // 皮肤数据
     const skins = [
       { name: '草地打滚款', emoji: '🐾', price: 0, owned: true, active: !opts.purchasedCapybara },
       { name: '卡皮巴拉形象', emoji: '🎩', price: 400, owned: opts.purchasedCapybara, active: opts.purchasedCapybara },
@@ -118,12 +123,13 @@ export function openShopScreen(
       { name: '冬日围巾款', emoji: '🧣', price: 600, owned: false, active: false }
     ]
 
-    const CARD_W = (PANEL_W - 60) / 2
+    const CARD_GAP = 20
+    const CARD_W = (contentW - CARD_GAP) / 2
     const CARD_H = 200
 
     skins.forEach((skin, i) => {
       const col = i % 2, row = Math.floor(i / 2)
-      const cx = px + 20 + col * (CARD_W + 20)
+      const cx = cLeft + col * (CARD_W + CARD_GAP)
       const cy = CONTENT_Y + row * (CARD_H + 16)
 
       const card = new PIXI.Graphics()
@@ -183,7 +189,6 @@ export function openShopScreen(
     root.addChild(c)
     currentTabContainers.push(c)
 
-    // 道具列表（每个单独购买，各 100 金币；血量 50 金币）
     const tools = [
       { name: '提示道具', desc: '自动高亮一对可消除图块', emoji: '💡', stock: `库存：×${opts.inventory.hint}`, price: 100, onBuy: opts.onBuyHint },
       { name: '刷新道具', desc: '将所有未消除图块重新洗牌', emoji: '🔀', stock: `库存：×${opts.inventory.refresh}`, price: 100, onBuy: opts.onBuyRefresh },
@@ -191,7 +196,6 @@ export function openShopScreen(
       { name: '血量', desc: '补充 1 点血量', emoji: '❤️', stock: '', price: 50, onBuy: opts.onBuyBlood }
     ]
 
-    const CARD_W = PANEL_W - 60
     const CARD_H = 110
 
     tools.forEach((tool, i) => {
@@ -200,42 +204,42 @@ export function openShopScreen(
       const card = new PIXI.Graphics()
       card.lineStyle(2, C_OUTLINE, 0.3)
       card.beginFill(C_PANEL)
-      card.drawRoundedRect(px + 20, cy, CARD_W, CARD_H, 14)
+      card.drawRoundedRect(cLeft, cy, contentW, CARD_H, 14)
       card.endFill()
       c.addChild(card)
 
       // 图标
       const iconBg = new PIXI.Graphics()
       iconBg.beginFill(C_SKY, 0.25)
-      iconBg.drawCircle(px + 66, cy + CARD_H / 2, 34)
+      iconBg.drawCircle(cLeft + 46, cy + CARD_H / 2, 34)
       iconBg.endFill()
       c.addChild(iconBg)
       const eT = new PIXI.Text(tool.emoji, { fontSize: 36 })
       eT.anchor.set(0.5, 0.5)
-      eT.position.set(px + 66, cy + CARD_H / 2)
+      eT.position.set(cLeft + 46, cy + CARD_H / 2)
       c.addChild(eT)
 
       // 名称 + 描述 + 库存
       const nameT = txt(tool.name, 26, C_TEXT, '800')
       nameT.anchor.set(0, 0)
-      nameT.position.set(px + 112, cy + 12)
+      nameT.position.set(cLeft + 92, cy + 12)
       c.addChild(nameT)
 
       const descT = txt(tool.desc, 20, C_OUTLINE, '500')
       descT.anchor.set(0, 0)
-      descT.position.set(px + 112, cy + 46)
+      descT.position.set(cLeft + 92, cy + 46)
       c.addChild(descT)
 
       if (tool.stock) {
         const stockT = txt(tool.stock, 19, C_GRAY, '600')
         stockT.anchor.set(0, 0)
-        stockT.position.set(px + 112, cy + 74)
+        stockT.position.set(cLeft + 92, cy + 74)
         c.addChild(stockT)
       }
 
       // 购买按钮
       const buyBtn = makeJellyBtn(`🪙 ${tool.price}`, 130, 42)
-      buyBtn.position.set(px + CARD_W - 82, cy + CARD_H / 2)
+      buyBtn.position.set(cLeft + contentW - 82, cy + CARD_H / 2)
       buyBtn.on('pointerdown', tool.onBuy)
       c.addChild(buyBtn)
     })
@@ -258,33 +262,33 @@ export function openShopScreen(
       const card = new PIXI.Graphics()
       card.lineStyle(2, C_OUTLINE, 0.3)
       card.beginFill(C_PANEL)
-      card.drawRoundedRect(px + 20, cy, PANEL_W - 60, 96, 14)
+      card.drawRoundedRect(cLeft, cy, contentW, 96, 14)
       card.endFill()
       c.addChild(card)
 
       const eT = new PIXI.Text(pack.emoji, { fontSize: 38 })
       eT.anchor.set(0.5, 0.5)
-      eT.position.set(px + 64, cy + 48)
+      eT.position.set(cLeft + 44, cy + 48)
       c.addChild(eT)
 
       const nameT = txt(pack.name, 28, C_TEXT, '800')
       nameT.anchor.set(0, 0.5)
-      nameT.position.set(px + 106, cy + 28)
+      nameT.position.set(cLeft + 86, cy + 28)
       c.addChild(nameT)
 
       const descT = txt(pack.desc, 22, C_OUTLINE, '500')
       descT.anchor.set(0, 0.5)
-      descT.position.set(px + 106, cy + 64)
+      descT.position.set(cLeft + 86, cy + 64)
       c.addChild(descT)
 
       // 试听或购买
       if (pack.owned) {
         const badge = makeBadge('✓ 已拥有', 0x4caf50)
-        badge.position.set(px + PANEL_W - 100, cy + 48)
+        badge.position.set(cRight - 60, cy + 48)
         c.addChild(badge)
       } else if (pack.price) {
         const buyBtn = makeJellyBtn(`🪙 ${pack.price}`, 140, 44)
-        buyBtn.position.set(px + PANEL_W - 100, cy + 48)
+        buyBtn.position.set(cRight - 60, cy + 48)
         buyBtn.on('pointerdown', pack.onBuy!)
         c.addChild(buyBtn)
       }
@@ -294,19 +298,19 @@ export function openShopScreen(
   // 初始展示形象
   showTab(0)
 
-  // 关闭按钮
-  const closeBtn = makeCloseBtn(close)
-  closeBtn.position.set(px + PANEL_W - 24, py + 24)
-  root.addChild(closeBtn)
-
   root.scale.set(dr)
   parent.addChild(wrap)
   bounceIn(root, dr)
 
+  let closing = false
   function close() {
+    if (closing) return
+    closing = true
     opts.onClose?.()
-    parent.removeChild(wrap)
-    wrap.destroy({ children: true })
+    bounceOut(root, dr, dim, () => {
+      parent.removeChild(wrap)
+      wrap.destroy({ children: true })
+    })
   }
 
   return wrap

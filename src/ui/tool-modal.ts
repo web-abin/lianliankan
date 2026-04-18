@@ -5,9 +5,9 @@
 import * as PIXI from 'pixi.js'
 import { windowWidth, windowHeight, DESIGN_REF_W, designLayoutH } from '~/core'
 import {
-  C_OUTLINE, C_PANEL, C_ORANGE, C_TEXT, C_SKY, C_YELLOW, C_GREEN_WX, C_RED,
-  drawPanel, makeOverlay, makeJellyBtn, makeCloseBtn, makeIpDeco,
-  bounceIn, txt, txtWrap
+  C_OUTLINE, C_ORANGE, C_TEXT, C_SKY, C_YELLOW, C_GREEN_WX, C_RED,
+  makePanelBg, panelPad, makeOverlay, makeJellyBtn,
+  bounceIn, bounceOut, txt
 } from '~/ui/ui-kit'
 
 export type ToolType = 'hint' | 'refresh' | 'eliminate'
@@ -39,26 +39,25 @@ export function openToolModal(
 
   const wrap = new PIXI.Container()
   ;(wrap as any).interactive = true
-  wrap.addChild(makeOverlay(sw, sh))
+  const dim = makeOverlay(sw, sh)
+  wrap.addChild(dim)
 
   const root = new PIXI.Container()
   root.position.set(sw / 2, sh * 0.46)
   wrap.addChild(root)
 
   const PANEL_W = 520
-  const PANEL_H = 480
+  const pad = panelPad(PANEL_W)
+  const contentW = PANEL_W - 2 * pad.lr
+  const PANEL_H = pad.top + 330 + pad.bot
   const px = -PANEL_W / 2, py = -PANEL_H / 2
 
-  const panel = new PIXI.Graphics()
-  drawPanel(panel, PANEL_W, PANEL_H, 28)
+  const panel = makePanelBg(PANEL_W, PANEL_H, close)
   panel.position.set(px, py)
   root.addChild(panel)
 
-  // IP 装饰（捧着空袋子委屈状）
-  // TODO: 替换为真实"拿空袋子委屈泪眼"卡皮巴拉切图
-  const ip = makeIpDeco(86)
-  ip.position.set(0, py + 2)
-  root.addChild(ip)
+  const cTop = py + pad.top
+  const cBot = py + PANEL_H - pad.bot
 
   // 道具图标（大号圆形背景）
   const iconBg = new PIXI.Graphics()
@@ -67,24 +66,24 @@ export function openToolModal(
   iconBg.endFill()
   iconBg.lineStyle(2.5, C_OUTLINE, 0.3)
   iconBg.drawCircle(0, 0, 44)
-  iconBg.position.set(0, py + 52)
+  iconBg.position.set(0, cTop + 10)
   root.addChild(iconBg)
 
   const emojiT = new PIXI.Text(tool.emoji, { fontSize: 50 })
   emojiT.anchor.set(0.5, 0.5)
-  emojiT.position.set(0, py + 52)
+  emojiT.position.set(0, cTop + 10)
   root.addChild(emojiT)
 
   // 道具名称
   const nameT = txt(tool.name, 30, C_TEXT, '900')
   nameT.anchor.set(0.5, 0)
-  nameT.position.set(0, py + 110)
+  nameT.position.set(0, cTop + 62)
   root.addChild(nameT)
 
   // 功能说明
   const descT = txt(tool.desc, 24, 0x666666, '500')
   descT.anchor.set(0.5, 0)
-  descT.position.set(0, py + 152)
+  descT.position.set(0, cTop + 100)
   root.addChild(descT)
 
   // 库存：×0
@@ -92,24 +91,24 @@ export function openToolModal(
   stockBg.beginFill(0xeeeeee)
   stockBg.drawRoundedRect(-54, -20, 108, 40, 20)
   stockBg.endFill()
-  stockBg.position.set(0, py + 210)
+  stockBg.position.set(0, cTop + 158)
   root.addChild(stockBg)
 
   const stockT = txt('当前 ×0', 26, C_RED, '900')
   stockT.anchor.set(0.5, 0.5)
-  stockT.position.set(0, py + 210)
+  stockT.position.set(0, cTop + 158)
   root.addChild(stockT)
 
-  // 每日剩余补给次数提示（如 "补给次数：1/3"）
+  // 每日剩余补给次数提示
   const shareCountStr = `补给次数：${opts.remainingShare}/${opts.maxShare}`
   const shareCountT = txt(shareCountStr, 22, opts.remainingShare > 0 ? 0x2e7d32 : 0xb71c1c, '700')
   shareCountT.anchor.set(0.5, 0)
-  shareCountT.position.set(0, py + 250)
+  shareCountT.position.set(0, cTop + 198)
   root.addChild(shareCountT)
 
   // 两个并排按钮
-  const BTN_W = (PANEL_W - 80 - 16) / 2
-  const BTN_Y = py + PANEL_H - 108
+  const BTN_W = (contentW - 16) / 2
+  const BTN_Y = cBot - 29
 
   // 分享获得（若补给次数为 0 则置灰）
   const shareDisabled = opts.remainingShare <= 0
@@ -132,18 +131,19 @@ export function openToolModal(
   shopBtn.on('pointerdown', () => { close(); opts.onShop() })
   root.addChild(shopBtn)
 
-  const closeBtn = makeCloseBtn(close)
-  closeBtn.position.set(px + PANEL_W - 24, py + 24)
-  root.addChild(closeBtn)
-
   root.scale.set(dr)
   parent.addChild(wrap)
   bounceIn(root, dr)
 
+  let closing = false
   function close() {
+    if (closing) return
+    closing = true
     opts.onClose?.()
-    parent.removeChild(wrap)
-    wrap.destroy({ children: true })
+    bounceOut(root, dr, dim, () => {
+      parent.removeChild(wrap)
+      wrap.destroy({ children: true })
+    })
   }
 
   return wrap

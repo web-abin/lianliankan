@@ -6,10 +6,11 @@
 import * as PIXI from 'pixi.js'
 import { windowWidth, windowHeight, DESIGN_REF_W, designLayoutH } from '~/core'
 import {
-  C_OUTLINE, C_PANEL, C_ORANGE, C_SKY, C_TEXT, C_BG, C_GRAY, C_YELLOW,
-  drawPanel, makeOverlay, makeJellyBtn, makeCloseBtn, makeIpDeco,
-  bounceIn, txt
+  C_OUTLINE, C_PANEL, C_ORANGE, C_SKY, C_TEXT, C_BG, C_GRAY,
+  makePanelBg, panelPad, makeOverlay, makeJellyBtn,
+  bounceIn, bounceOut, txt
 } from '~/ui/ui-kit'
+import { BETA_UNLOCK_ALL } from '~/game/game-hooks'
 import type { GameThemeId } from '~/game/game-hooks'
 
 export interface ThemePanelOptions {
@@ -27,7 +28,7 @@ interface ThemeDef {
   unlockHint: string
 }
 
-// 5 个主题定义（与需求文档一一对应）
+// 第一版上线 3 个主题
 const THEMES: ThemeDef[] = [
   {
     id: 'fruit',
@@ -37,25 +38,11 @@ const THEMES: ThemeDef[] = [
     unlockHint: '默认解锁'
   },
   {
-    id: 'emotion',
-    name: '情绪主题',
-    emoji: '😤',
-    icons: ['💀', '🫠', '😱', '😭'],
-    unlockHint: '主线通关 15 关解锁'
-  },
-  {
-    id: 'forest-music',
+    id: 'music',
     name: '森林音乐会',
     emoji: '🎵',
     icons: ['🎵', '🎸', '🔔', '🐦'],
     unlockHint: '完成 5 次每日挑战解锁'
-  },
-  {
-    id: 'plant',
-    name: '植物主题',
-    emoji: '🌿',
-    icons: ['🌿', '🌸', '🍄', '🍀'],
-    unlockHint: '累计消除 200 对解锁'
   },
   {
     id: 'animal',
@@ -71,60 +58,59 @@ export function openThemePanel(
   opts: ThemePanelOptions
 ): PIXI.Container {
   const sw = windowWidth, sh = windowHeight
-  const DESIGN_W = DESIGN_REF_W
-  const DESIGN_H = designLayoutH
-  const dr = Math.min(sw / DESIGN_W, sh / DESIGN_H)
+  const dr = Math.min(sw / DESIGN_REF_W, sh / designLayoutH)
 
   const wrap = new PIXI.Container()
   ;(wrap as any).interactive = true
-  wrap.addChild(makeOverlay(sw, sh))
+  const dim = makeOverlay(sw, sh)
+  wrap.addChild(dim)
 
   const root = new PIXI.Container()
   root.position.set(sw / 2, sh * 0.5)
   wrap.addChild(root)
 
   const PANEL_W = 620
-  const PANEL_H = 820
+  const pad = panelPad(PANEL_W)
+  const contentW = PANEL_W - 2 * pad.lr
+  const rows = Math.ceil(THEMES.length / 2)
+  const PANEL_H = pad.top + 36 + 16 + rows * 206 + 16 + 52 + pad.bot
   const px = -PANEL_W / 2
   const py = -PANEL_H / 2
+  const cLeft = px + pad.lr
 
   // 面板
-  const panel = new PIXI.Graphics()
-  drawPanel(panel, PANEL_W, PANEL_H, 28)
+  const panel = makePanelBg(PANEL_W, PANEL_H, close)
   panel.position.set(px, py)
   root.addChild(panel)
 
-  // IP 装饰（手持画板）
-  // TODO: 替换为"手持彩铅画板星星眼"卡皮巴拉切图
-  const ip = makeIpDeco(86)
-  ip.position.set(0, py + 2)
-  root.addChild(ip)
+  const cTop = py + pad.top
+  const cBot = py + PANEL_H - pad.bot
 
   // 标题
   const titleT = txt('选择主题', 36, C_TEXT, '900')
   titleT.anchor.set(0.5, 0)
-  titleT.position.set(0, py + 28)
+  titleT.position.set(0, cTop)
   root.addChild(titleT)
 
   // 主题卡片网格（2列）
-  const CARD_W = (PANEL_W - 60) / 2
-  const CARD_H = 190
   const CARD_GAP = 16
-  const GRID_TOP = py + 88
+  const CARD_W = (contentW - CARD_GAP) / 2
+  const CARD_H = 190
+  const GRID_TOP = cTop + 52
 
   THEMES.forEach((theme, i) => {
     const col = i % 2
     const row = Math.floor(i / 2)
-    const cx = px + 20 + col * (CARD_W + CARD_GAP)
+    const cx = cLeft + col * (CARD_W + CARD_GAP)
     const cy = GRID_TOP + row * (CARD_H + CARD_GAP)
 
-    const isUnlocked = opts.unlockedThemes.includes(theme.id)
+    // 内测模式下所有主题视为已解锁
+    const isUnlocked = BETA_UNLOCK_ALL || opts.unlockedThemes.includes(theme.id)
     const isActive = theme.id === opts.selectedTheme
 
     // 卡片背景
     const card = new PIXI.Graphics()
     if (!isUnlocked) {
-      // 锁定：灰化
       card.beginFill(0xe0e0e0, 0.8)
     } else if (isActive) {
       card.beginFill(C_SKY, 0.18)
@@ -160,7 +146,6 @@ export function openThemePanel(
 
     // 状态区
     if (!isUnlocked) {
-      // 锁定：锁图标 + 解锁提示
       const lockT = new PIXI.Text('🔒', { fontSize: 30 })
       lockT.anchor.set(0.5, 0)
       lockT.position.set(cx + CARD_W / 2, cy + CARD_H - 64)
@@ -171,12 +156,10 @@ export function openThemePanel(
       hintT.position.set(cx + CARD_W / 2, cy + CARD_H - 32)
       root.addChild(hintT)
     } else if (isActive) {
-      // 使用中胶囊
       const badge = makeBadge('当前使用', C_ORANGE)
       badge.position.set(cx + CARD_W / 2, cy + CARD_H - 24)
       root.addChild(badge)
     } else {
-      // 使用按钮
       const useBtn = makeJellyBtn('使用', CARD_W - 32, 40, C_SKY)
       useBtn.position.set(cx + CARD_W / 2, cy + CARD_H - 24)
       useBtn.on('pointerdown', () => {
@@ -190,22 +173,23 @@ export function openThemePanel(
 
   // 关闭按钮
   const closeBtn = makeJellyBtn('关闭', 200, 52, C_BG, C_OUTLINE)
-  closeBtn.position.set(0, py + PANEL_H - 38)
+  closeBtn.position.set(0, cBot - 26)
   closeBtn.on('pointerdown', close)
   root.addChild(closeBtn)
-
-  const xBtn = makeCloseBtn(close)
-  xBtn.position.set(px + PANEL_W - 24, py + 24)
-  root.addChild(xBtn)
 
   root.scale.set(dr)
   parent.addChild(wrap)
   bounceIn(root, dr)
 
+  let closing = false
   function close() {
+    if (closing) return
+    closing = true
     opts.onClose?.()
-    parent.removeChild(wrap)
-    wrap.destroy({ children: true })
+    bounceOut(root, dr, dim, () => {
+      parent.removeChild(wrap)
+      wrap.destroy({ children: true })
+    })
   }
 
   return wrap

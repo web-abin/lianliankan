@@ -230,8 +230,8 @@ export async function show() {
     wx.hideLoading?.()
   } catch (_) {}
 
-  // 真机上 wechat-adapter 对 webp 的 Image 实现可能不触发 error 事件，
-  // 导致 loader.load() 回调永远不调用，卡死在 loading 界面。
+  // 注意：真机上 wechat-adapter 对 webp 的 Image 实现可能不触发 error 事件，
+  // 导致 loader.load() 回调永远不调用，卡死在 loading 界面。请勿在预加载列表中使用 webp 格式。
   const allUrls = [
     ...(ASSET_URLS as unknown as string[]),
     ...(GAME_PRELOAD_URLS as unknown as string[])
@@ -279,12 +279,25 @@ export async function show() {
       )
     }
 
+    // 超时兜底：真机上某些格式可能既不触发 load 也不触发 error，导致卡死
+    const LOAD_TIMEOUT_MS = 15000
     await new Promise<void>(resolve => {
-      loader.load(() => {
+      let done = false
+      const finish = () => {
+        if (done) return
+        done = true
         for (const u of toLoad) perFile.set(u, 1)
         drawFill(1)
         detachBindings(bindings)
         resolve()
+      }
+      const timer = setTimeout(() => {
+        console.warn('[loading] loader timeout, forcing continue')
+        finish()
+      }, LOAD_TIMEOUT_MS)
+      loader.load(() => {
+        clearTimeout(timer)
+        finish()
       })
     })
   } else {

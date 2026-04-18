@@ -19,7 +19,7 @@ export const C_BROWN    = 0x8b6040  // 卡皮巴拉暖棕
 export const C_TEXT     = 0x2a5a14  // 深森绿正文
 export const C_GRAY     = 0xb0b0b0  // 灰色（禁用）
 export const C_GREEN_WX = 0x07c160  // 微信绿
-export const C_OVERLAY  = 0x2a5a14  // 遮罩底色
+export const C_OVERLAY  = 0x000000  // 遮罩蒙层底色
 
 // ═══════════════════════════════════════════════════════
 // 动画工具
@@ -44,14 +44,49 @@ export function bounceIn(target: PIXI.Container, finalScale: number) {
   requestAnimationFrame(step)
 }
 
+/**
+ * 执行 bounce 退场动画（~220ms）：轻微上弹 → 快速缩小回收 + 遮罩淡出
+ * 完成后调用 onDone（通常用于销毁 wrap）
+ */
+export function bounceOut(
+  target: PIXI.Container,
+  finalScale: number,
+  overlay: PIXI.DisplayObject | null,
+  onDone: () => void
+) {
+  const start = performance.now()
+  const dur = 220
+  const baseY = target.y
+  const startOverlayAlpha = overlay?.alpha ?? 0
+  const step = () => {
+    const u = Math.min(1, (performance.now() - start) / dur)
+    let scale: number, offsetY: number
+    if (u < 0.25) {
+      const t = u / 0.25
+      scale = 1 + 0.08 * t
+      offsetY = -10 * t
+    } else {
+      const t = (u - 0.25) / 0.75
+      scale = 1.08 * (1 - t)
+      offsetY = -10 + 28 * t
+    }
+    target.scale.set(finalScale * scale)
+    target.y = baseY + offsetY
+    if (overlay) overlay.alpha = startOverlayAlpha * (1 - u)
+    if (u < 1) requestAnimationFrame(step)
+    else onDone()
+  }
+  requestAnimationFrame(step)
+}
+
 // ═══════════════════════════════════════════════════════
-// 全屏遮罩
+// 全屏遮罩蒙层
 // ═══════════════════════════════════════════════════════
 
 /** 深森绿半透明全屏遮罩，吞掉穿透点击 */
 export function makeOverlay(sw: number, sh: number): PIXI.Graphics {
   const g = new PIXI.Graphics()
-  g.beginFill(C_OVERLAY, 0.45)
+  g.beginFill(C_OVERLAY, 0.75)
   g.drawRect(0, 0, sw, sh)
   g.endFill()
   ;(g as any).interactive = true
@@ -84,6 +119,85 @@ export function drawPanel(g: PIXI.Graphics, w: number, h: number, r = 28) {
   g.beginFill(0xffffff, 0.18)
   g.drawRoundedRect(10, 6, w - 20, h * 0.25, r - 4)
   g.endFill()
+}
+
+/** 弹窗标准内边距（基于弹窗宽度百分比） */
+export function panelPad(w: number) {
+  return {
+    top: Math.round(w * 0.19),
+    lr:  Math.round(w * 0.17),
+    bot: Math.round(w * 0.205),
+    // 内容与弹窗标题的距离
+    contentTop: Math.round(w * 0.2),
+  }
+}
+
+/**
+ * 使用 bg-popup.png 创建纵向三段式自适应弹窗背景
+ * 头 25% 固定 · 尾 25% 固定 · 中间 50% 拉伸填充
+ * 宽度水平铺满，头尾按等比缩放不变形
+ * 传入 onClose 时自动挂载统一的关闭按钮（close.png，40×40，右 2%、顶 20% 弹窗宽）
+ */
+export function makePanelBg(w: number, h: number, onClose?: () => void): PIXI.Container {
+  const tex = PIXI.Texture.from('assets/common/bg-popup.png')
+  const base = tex.baseTexture
+  const origW = tex.width
+  const origH = tex.height
+
+  // 原图三段高度
+  const topH = Math.round(origH * 0.25)
+  const botH = Math.round(origH * 0.25)
+  const midH = origH - topH - botH
+
+  // 水平缩放比（宽度铺满）
+  const sx = w / origW
+
+  // 头尾等比缩放后的实际高度
+  const topRendered = topH * sx
+  const botRendered = botH * sx
+
+  // 中间拉伸后高度 = 总高 - 头 - 尾
+  const midRendered = Math.max(0, h - topRendered - botRendered)
+
+  // 切三段纹理
+  const topTex = new PIXI.Texture(base, new PIXI.Rectangle(0, 0, origW, topH))
+  const midTex = new PIXI.Texture(base, new PIXI.Rectangle(0, topH, origW, midH))
+  const botTex = new PIXI.Texture(base, new PIXI.Rectangle(0, topH + midH, origW, botH))
+
+  const c = new PIXI.Container()
+
+  const topSpr = new PIXI.Sprite(topTex)
+  topSpr.width = w
+  topSpr.height = topRendered
+  c.addChild(topSpr)
+
+  const midSpr = new PIXI.Sprite(midTex)
+  midSpr.width = w
+  midSpr.height = midRendered
+  midSpr.y = topRendered
+  c.addChild(midSpr)
+
+  const botSpr = new PIXI.Sprite(botTex)
+  botSpr.width = w
+  botSpr.height = botRendered
+  botSpr.y = topRendered + midRendered
+  c.addChild(botSpr)
+
+  // 统一关闭按钮（40×40，右 2% 弹窗宽、顶 20% 弹窗宽）
+  if (onClose) {
+    const closeBtn = new PIXI.Sprite(PIXI.Texture.from('assets/button/close.png'))
+    closeBtn.width = 74
+    closeBtn.height = 74
+    closeBtn.anchor.set(1, 0)
+    closeBtn.x = w - w * 0.02
+    closeBtn.y = w * 0.20
+    ;(closeBtn as any).interactive = true
+    ;(closeBtn as any).buttonMode = true
+    closeBtn.on('pointerdown', onClose)
+    c.addChild(closeBtn)
+  }
+
+  return c
 }
 
 /** 绘制暗夜草地背景面板（排行榜用） */
@@ -144,6 +258,95 @@ export function makeJellyBtn(
   c.on('pointerup', () => { c.scale.set(1.0); c.y -= 2 })
   c.on('pointerupoutside', () => { c.scale.set(1.0); c.y -= 2 })
   return c
+}
+
+// ═══════════════════════════════════════════════════════
+// 模态外部按钮（图片背景，三色主题）
+// ═══════════════════════════════════════════════════════
+
+export type ModalBtnColor = 'yellow' | 'green' | 'blue'
+
+/** 各色按钮文字描边色（深一档，与按钮主体形成对比） */
+const MODAL_BTN_STROKE: Record<ModalBtnColor, number> = {
+  yellow: 0xd97e1e,
+  green:  0x2d8e2d,
+  blue:   0x1e7ec4,
+}
+
+/** 通用图片按钮：白字 + 主题色描边，按图片等比缩放至 width */
+export function makeImageBtn(
+  label: string,
+  color: ModalBtnColor,
+  onClick: () => void,
+  width = 320,
+): PIXI.Container {
+  const c = new PIXI.Container()
+  ;(c as any).interactive = true
+  ;(c as any).buttonMode = true
+
+  const tex = PIXI.Texture.from(`assets/button/button-${color}.png`)
+  const spr = new PIXI.Sprite(tex)
+  spr.anchor.set(0.5, 0.5)
+  // 等比缩放至目标宽度
+  const apply = () => {
+    const ow = (tex as any).orig?.width || tex.width
+    if (ow > 0) spr.scale.set(width / ow)
+  }
+  const base = (tex as any).baseTexture
+  if (base?.valid) apply()
+  else base?.once?.('loaded', apply)
+  c.addChild(spr)
+
+  // 文字：白字 + 主题色描边
+  const t = new PIXI.Text(label, {
+    fontFamily: 'sans-serif',
+    fontSize: 40,
+    fill: 0xffffff,
+    stroke: MODAL_BTN_STROKE[color],
+    strokeThickness: 5,
+    fontWeight: '900',
+    align: 'center',
+  })
+  t.anchor.set(0.5, 0.6)
+  c.addChild(t)
+
+  // 点击下压反馈
+  c.on('pointerdown', () => { c.scale.set(0.95); c.y += 2 })
+  c.on('pointerup', () => { c.scale.set(1); c.y -= 2; onClick() })
+  c.on('pointerupoutside', () => { c.scale.set(1); c.y -= 2 })
+  return c
+}
+
+export interface ModalAction {
+  label: string
+  color: ModalBtnColor
+  onClick: () => void
+}
+
+/** 按钮图片宽高比（≈2.22:1），用于布局计算 */
+const MODAL_BTN_W = 280
+const MODAL_BTN_H = 74
+const MODAL_BTN_GAP = 20
+
+/**
+ * 弹窗外部按钮组：纵向堆叠，宽 164、间距 20，水平居中
+ * 容器原点 = 第一个按钮的顶边，X 居中
+ * 返回 { container, height } —— height 含全部按钮 + 间距
+ */
+export function makeModalActions(actions: ModalAction[]): {
+  container: PIXI.Container
+  height: number
+} {
+  const c = new PIXI.Container()
+  actions.forEach((a, i) => {
+    const btn = makeImageBtn(a.label, a.color, a.onClick, MODAL_BTN_W)
+    btn.y = i * (MODAL_BTN_H + MODAL_BTN_GAP) + MODAL_BTN_H / 2
+    c.addChild(btn)
+  })
+  const height = actions.length === 0
+    ? 0
+    : actions.length * MODAL_BTN_H + (actions.length - 1) * MODAL_BTN_GAP
+  return { container: c, height }
 }
 
 /** 关闭按钮（深森绿圆形 ×，anchor 在圆心） */
@@ -266,41 +469,59 @@ export function makeTabCapsule(
 // ═══════════════════════════════════════════════════════
 
 /**
- * 拨动开关（ON=天空蓝，OFF=灰色）
- * 宽 80 高 44，坐标原点在左上角
+ * 拨动开关（参考美术：橙色底轨 + 黄色圆钮）
+ * 宽 120 高 44，坐标原点在左上角
  */
 export function makeToggle(
   on: boolean,
   onChange: (v: boolean) => void
 ): PIXI.Container & { setValue: (v: boolean) => void } {
-  const W = 80, H = 44
+  const W = 120, H = 44
   const c = new PIXI.Container() as PIXI.Container & { setValue: (v: boolean) => void }
   ;(c as any).interactive = true
   ;(c as any).buttonMode = true
 
   let state = on
   const bg = new PIXI.Graphics()
+  const bgHi = new PIXI.Graphics()
+  const knobShadow = new PIXI.Graphics()
   const knob = new PIXI.Graphics()
 
   const redraw = () => {
     bg.clear()
-    bg.lineStyle(2, C_OUTLINE, 0.5)
-    bg.beginFill(state ? C_SKY : C_GRAY)
+    bg.lineStyle(2, 0xd88449, 0.9)
+    bg.beginFill(0xf2a56c)
     bg.drawRoundedRect(0, 0, W, H, H / 2)
     bg.endFill()
 
+    bgHi.clear()
+    bgHi.beginFill(0xffffff, 0.28)
+    bgHi.drawRoundedRect(4, 3, W - 8, H * 0.42, (H * 0.42) / 2)
+    bgHi.endFill()
+
+    const knobX = state ? W - H / 2 + 2 : H / 2 - 2
+
+    knobShadow.clear()
+    knobShadow.beginFill(0xcc843f, 0.35)
+    knobShadow.drawCircle(0, 0, H / 2 - 4)
+    knobShadow.endFill()
+    knobShadow.x = knobX
+    knobShadow.y = H / 2 + 1
+
     knob.clear()
-    knob.beginFill(0xffffff)
+    knob.beginFill(0xf5df4b)
     knob.drawCircle(0, 0, H / 2 - 4)
     knob.endFill()
-    knob.lineStyle(1.5, C_OUTLINE, 0.25)
+    knob.lineStyle(1.5, 0xd19b20, 0.8)
     knob.drawCircle(0, 0, H / 2 - 4)
-    knob.x = state ? W - H / 2 + 2 : H / 2 - 2
+    knob.x = knobX
     knob.y = H / 2
   }
 
   redraw()
   c.addChild(bg)
+  c.addChild(bgHi)
+  c.addChild(knobShadow)
   c.addChild(knob)
 
   c.on('pointerdown', () => {

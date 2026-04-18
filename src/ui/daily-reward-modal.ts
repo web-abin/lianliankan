@@ -7,9 +7,9 @@
 import * as PIXI from 'pixi.js'
 import { windowWidth, windowHeight, DESIGN_REF_W, designLayoutH } from '~/core'
 import {
-  C_OUTLINE, C_PANEL, C_ORANGE, C_YELLOW, C_TEXT, C_GRAY,
-  drawPanel, makeOverlay, makeJellyBtn, makeCloseBtn, makeIpDeco,
-  bounceIn, txt, txtWrap
+  C_OUTLINE, C_ORANGE, C_YELLOW, C_TEXT, C_GRAY,
+  makePanelBg, panelPad, makeOverlay, makeModalActions,
+  bounceIn, bounceOut, txt
 } from '~/ui/ui-kit'
 
 export interface DailyRewardOptions {
@@ -33,41 +33,39 @@ export function openDailyRewardModal(
 
   const wrap = new PIXI.Container()
   ;(wrap as any).interactive = true
-  wrap.addChild(makeOverlay(sw, sh))
+  const dim = makeOverlay(sw, sh)
+  wrap.addChild(dim)
 
   const root = new PIXI.Container()
   root.position.set(sw / 2, sh * 0.48)
   wrap.addChild(root)
 
   const PANEL_W = 620
-  const PANEL_H = 580
+  const pad = panelPad(PANEL_W)
+  // 标题(36) + 副标题(22) + 7 格日历(2 行 × 114 + 间距) + 边距 ≈ 320
+  const PANEL_H = pad.top + 320 + pad.bot
   const px = -PANEL_W / 2, py = -PANEL_H / 2
 
-  const panel = new PIXI.Graphics()
-  drawPanel(panel, PANEL_W, PANEL_H, 28)
+  const panel = makePanelBg(PANEL_W, PANEL_H, close)
   panel.position.set(px, py)
   root.addChild(panel)
 
-  // IP 装饰（双手高举欢呼）
-  // TODO: 替换为真实"欢呼星星眼"卡皮巴拉切图
-  const ip = makeIpDeco(86)
-  ip.position.set(0, py + 2)
-  root.addChild(ip)
+  const cTop = py + pad.top
 
   // 标题
   const titleT = txt('每日奖励', 36, C_TEXT, '900')
   titleT.anchor.set(0.5, 0)
-  titleT.position.set(0, py + 28)
+  titleT.position.set(0, cTop)
   root.addChild(titleT)
 
   const subT = txt('连续签到越多，奖励越丰厚！', 22, C_OUTLINE, '600')
   subT.anchor.set(0.5, 0)
-  subT.position.set(0, py + 72)
+  subT.position.set(0, cTop + pad.contentTop)
   root.addChild(subT)
 
   // 7 格日历（第1行 Day1~4，第2行 Day5~7 居中）
   const CELL_W = 116, CELL_H = 104, CELL_GAP = 10
-  const ROW1_Y = py + 108
+  const ROW1_Y = cTop + pad.contentTop + 40
 
   for (let i = 0; i < 7; i++) {
     const row = i < 4 ? 0 : 1
@@ -133,31 +131,28 @@ export function openDailyRewardModal(
     }
   }
 
-  // 领取按钮
-  const BTN_Y = py + PANEL_H - 88
-  if (opts.alreadyClaimed) {
-    const doneBtn = makeJellyBtn(`今日已签到  第${opts.streakDay}天 ✓`, PANEL_W - 80, 60, C_GRAY)
-    doneBtn.position.set(0, BTN_Y)
-    root.addChild(doneBtn)
-  } else {
-    const claimBtn = makeJellyBtn('立即签到！🎁', PANEL_W - 80, 60)
-    claimBtn.position.set(0, BTN_Y)
-    claimBtn.on('pointerdown', () => { close(); opts.onClaim() })
-    root.addChild(claimBtn)
+  // 外部按钮：立即签到（蓝），已签到则不显示按钮
+  if (!opts.alreadyClaimed) {
+    const { container: actionBtns } = makeModalActions([
+      { label: '立即签到', color: 'blue', onClick: () => { close(); opts.onClaim() } }
+    ])
+    actionBtns.y = py + PANEL_H + 20
+    root.addChild(actionBtns)
   }
-
-  const closeBtn = makeCloseBtn(close)
-  closeBtn.position.set(px + PANEL_W - 24, py + 24)
-  root.addChild(closeBtn)
 
   root.scale.set(dr)
   parent.addChild(wrap)
   bounceIn(root, dr)
 
+  let closing = false
   function close() {
+    if (closing) return
+    closing = true
     opts.onClose?.()
-    parent.removeChild(wrap)
-    wrap.destroy({ children: true })
+    bounceOut(root, dr, dim, () => {
+      parent.removeChild(wrap)
+      wrap.destroy({ children: true })
+    })
   }
 
   return wrap

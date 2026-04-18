@@ -26,7 +26,6 @@ import {
 } from '~/game/economy-config'
 import { buildDailyLevelConfig, todayKey } from '~/game/daily-challenge'
 import { openSettingsModal } from '~/ui/settings-modal'
-import { openGiveUpModal } from '~/ui/give-up-modal'
 import { openToolModal } from '~/ui/tool-modal'
 import { openShopScreen } from '~/ui/shop-screen'
 import { reportProgressToCloud } from '~/wx/supabase-sync'
@@ -167,6 +166,11 @@ export async function show(opts?: {
     hearts: llk.hearts,
     maxHearts: llk.maxHearts,
     toolInventory: { ...llk.inventory },
+    toolShareRemaining: {
+      hint: Math.max(0, TOOL_SHARE_DAILY_CAP - getToolShareCount('hint')),
+      refresh: Math.max(0, TOOL_SHARE_DAILY_CAP - getToolShareCount('refresh')),
+      eliminate: Math.max(0, TOOL_SHARE_DAILY_CAP - getToolShareCount('eliminate')),
+    },
     onToolBeforeUse: i => {
       const toolTypes = ['hint', 'refresh', 'eliminate'] as const
       const toolType = toolTypes[i]
@@ -231,16 +235,7 @@ export async function show(opts?: {
           navigator.redirect('game', { level, mode })
         },
         onGiveUp: () => {
-          openGiveUpModal(stage, {
-            levelNum: level,
-            cleared: 0,
-            total: (levelConfig.cols ?? 8) * (levelConfig.rows ?? 8) / 2,
-            onRetry: () => { /* 玩家选择再试，弹窗已关闭 */ },
-            onGiveUp: () => {
-              // 放弃挑战不扣血（主线和每日挑战均不扣血）
-              navigator.back()
-            }
-          })
+          navigator.back()
         }
       })
     },

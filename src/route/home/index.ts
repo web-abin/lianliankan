@@ -49,6 +49,7 @@ function init() {
     coins: llk.coins,
     hearts: llk.hearts,
     maxHearts: llk.maxHearts,
+    themeId: llk.selectedTheme as GameThemeId,
 
     // ── 开始游戏 ─────────────────────────────────
     onStart: () => {

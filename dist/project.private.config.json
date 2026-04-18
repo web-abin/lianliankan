@@ -17,7 +17,7 @@
         "ignoreDevUnusedFiles": true,
         "bigPackageSizeSupport": true
     },
-    "projectname": "pixi-demo",
+    "projectname": "dist",
     "libVersion": "3.11.3",
     "condition": {
         "game": {

@@ -21,6 +21,51 @@ const ELIMINATION_PRAISE_PHRASES = [
 /** 爆裂环最大半径（设计坐标 px，与 80px 砖块一致的量级） */
 const BURST_RING_MAX_RADIUS = 80
 
+/** 主题粒子大小区间（设计坐标 px），最终大小 = MIN + rng * (MAX - MIN) */
+const THEME_PARTICLE_SIZE_MIN = 60
+const THEME_PARTICLE_SIZE_MAX = 90
+
+/** 气泡粒子大小区间（设计坐标 px，圆形半径） */
+const BUBBLE_SIZE_MIN = 12
+const BUBBLE_SIZE_MAX = 30
+
+/** 每个爆点生成的气泡数量占主题粒子数量的比例 */
+const BUBBLE_RATIO = 0.4
+
+/** 主题粒子总数量区间，最终数量 = MIN + rng * (MAX - MIN) */
+const THEME_PARTICLE_COUNT_MIN = 6
+const THEME_PARTICLE_COUNT_MAX = 12
+
+/** 主题粒子爆散速度区间（设计坐标 px/s），速度越大扩散半径越大 */
+const THEME_PARTICLE_SPEED_MIN = 130
+const THEME_PARTICLE_SPEED_MAX = 340
+
+/** 气泡粒子爆散速度区间（设计坐标 px/s） */
+const BUBBLE_SPEED_MIN = 70
+const BUBBLE_SPEED_MAX = 180
+
+/** 各主题粒子贴图路径（默认主题作为兜底） */
+const THEME_PARTICLE_URLS: Record<string, string[]> = {
+  fruit: [
+    'assets/theme/particle/flower1.png',
+    'assets/theme/particle/flower2.png',
+    'assets/theme/particle/flower3.png',
+    'assets/theme/particle/flower4.png',
+    'assets/theme/particle/grass1.png',
+    'assets/theme/particle/grass2.png',
+    'assets/theme/particle/grass3.png',
+    'assets/theme/particle/grass4.png',
+    'assets/theme/particle/star2.png',
+  ],
+  'music': [
+    'assets/theme/particle/star2.png',
+    'assets/theme/particle/yinfu1.png',
+    'assets/theme/particle/yinfu2.png',
+    'assets/theme/particle/yinfu3.png',
+  ],
+}
+const DEFAULT_PARTICLE_URLS = THEME_PARTICLE_URLS.fruit
+
 function animate(
   durationMs: number,
   onUpdate: (t: number) => void,
@@ -173,6 +218,8 @@ export interface EliminationEffectOptions {
   boardCols: number
   progressBarTarget: PIXI.Container
   onProgressPulse?: () => void
+  /** 当前主题 ID，用于选择粒子样式 */
+  themeId?: string
 }
 
 export function playEliminationEffect(opts: EliminationEffectOptions): void {
@@ -194,8 +241,11 @@ export function playEliminationEffect(opts: EliminationEffectOptions): void {
   } = opts
 
   const rng = mulberry32(Date.now() & 0xffff)
-  const starTex = PIXI.Texture.from('assets/common/star.png')
   const star2Tex = PIXI.Texture.from('assets/common/star2.png')
+
+  // 主题粒子贴图
+  const particleUrls = THEME_PARTICLE_URLS[opts.themeId ?? 'fruit'] ?? DEFAULT_PARTICLE_URLS
+  const particleTexes = particleUrls.map(u => PIXI.Texture.from(u))
 
   const EDGE_MARGIN = 16
   const pts: Point2D[] = path.map(({ r, c }) => {
@@ -223,7 +273,6 @@ export function playEliminationEffect(opts: EliminationEffectOptions): void {
       : { x: (posA.x + posB.x) / 2, y: (posA.y + posB.y) / 2 }
 
   const BURST_DELAY_MS = 215
-  const STAR_TINTS = [0xffffff, 0xffee88, 0xa8e8ff, 0xffb3c6, 0xc8ffb8]
 
   // 连线生长 + 流光（亮蓝半透明）
   if (pts.length >= 2) {
@@ -311,26 +360,28 @@ export function playEliminationEffect(opts: EliminationEffectOptions): void {
 
     for (const pos of [posA, posB]) spawnBurstRing(pos)
 
-    const nStars = 40 + Math.floor(rng() * 21)
+    const nStars = THEME_PARTICLE_COUNT_MIN + Math.floor(rng() * (THEME_PARTICLE_COUNT_MAX - THEME_PARTICLE_COUNT_MIN + 1))
     const starsA = Math.ceil(nStars / 2)
     const starsB = nStars - starsA
     const gAccel = 520
 
     // 粒子
+    // 主题粒子爆散
     const spawnStarBurst = (pos: Point2D, starCount: number) => {
       for (let i = 0; i < starCount; i++) {
-        const spr = new PIXI.Sprite(starTex)
+        const tex = particleTexes[((rng() * particleTexes.length) | 0) % particleTexes.length]
+        const spr = new PIXI.Sprite(tex)
         spr.anchor.set(0.5, 0.5)
         spr.position.set(pos.x, pos.y)
-        spr.tint = STAR_TINTS[(i + (rng() * 5) | 0) % STAR_TINTS.length]
-        spr.blendMode = PIXI.BLEND_MODES.ADD
-        const px = 7 + rng() * 7
-        const baseW = starTex.width || 32
+        spr.tint = 0xffffff
+        spr.blendMode = PIXI.BLEND_MODES.NORMAL
+        const px = THEME_PARTICLE_SIZE_MIN + rng() * (THEME_PARTICLE_SIZE_MAX - THEME_PARTICLE_SIZE_MIN)
+        const baseW = tex.width || 32
         spr.scale.set(px / baseW)
         fxLayer.addChild(spr)
 
         const angle = rng() * Math.PI * 2
-        const speed = 110 + rng() * 130
+        const speed = THEME_PARTICLE_SPEED_MIN + rng() * (THEME_PARTICLE_SPEED_MAX - THEME_PARTICLE_SPEED_MIN)
         const vx = Math.cos(angle) * speed
         const vy = Math.sin(angle) * speed - 40
         const lifespan = 380 + rng() * 140
@@ -358,6 +409,54 @@ export function playEliminationEffect(opts: EliminationEffectOptions): void {
 
     spawnStarBurst(posA, starsA)
     spawnStarBurst(posB, starsB)
+
+    // 通用气泡粒子（所有主题都会有，圆形半透明气泡）
+    const bubbleColors = [0xffffff, 0xffeedd, 0xddf4ff, 0xffe8f8, 0xeeffdd, 0xfff8cc]
+    const spawnBubbles = (pos: Point2D, count: number) => {
+      for (let i = 0; i < count; i++) {
+        const bubble = new PIXI.Graphics()
+        const radius = BUBBLE_SIZE_MIN + rng() * (BUBBLE_SIZE_MAX - BUBBLE_SIZE_MIN)
+        const color = bubbleColors[((rng() * bubbleColors.length) | 0) % bubbleColors.length]
+        // 气泡本体：半透明圆 + 高光
+        bubble.beginFill(color, 0.45 + rng() * 0.25)
+        bubble.drawCircle(0, 0, radius)
+        bubble.endFill()
+        // 高光点
+        bubble.beginFill(0xffffff, 0.6)
+        bubble.drawCircle(-radius * 0.28, -radius * 0.28, radius * 0.3)
+        bubble.endFill()
+
+        bubble.position.set(pos.x, pos.y)
+        fxLayer.addChild(bubble)
+
+        const angle = rng() * Math.PI * 2
+        const speed = BUBBLE_SPEED_MIN + rng() * (BUBBLE_SPEED_MAX - BUBBLE_SPEED_MIN)
+        const vx = Math.cos(angle) * speed
+        const vy = Math.sin(angle) * speed - 55
+        const lifespan = 450 + rng() * 200
+        const durationSec = lifespan / 1000
+
+        animate(
+          lifespan,
+          t => {
+            const elapsed = t * durationSec
+            bubble.x = pos.x + vx * elapsed
+            bubble.y = pos.y + vy * elapsed + 0.5 * gAccel * 0.35 * elapsed * elapsed
+            bubble.alpha = (1 - t) * 0.85
+            bubble.scale.set(1 - 0.5 * t)
+          },
+          () => {
+            if (bubble.parent) bubble.parent.removeChild(bubble)
+            bubble.destroy()
+          }
+        )
+      }
+    }
+
+    const bubblesA = Math.ceil(starsA * BUBBLE_RATIO)
+    const bubblesB = Math.ceil(starsB * BUBBLE_RATIO)
+    spawnBubbles(posA, bubblesA)
+    spawnBubbles(posB, bubblesB)
 
     // 消除飘字：随机赞美语，缩放弹出 + 上移淡出
     const phrase =

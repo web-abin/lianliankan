@@ -24,6 +24,8 @@ import {
   windowHeight
 } from '~/core'
 import { readFile } from '~/util'
+import type { GameThemeId } from '~/game/game-hooks'
+import { resolveThemeHomeBg, resolveThemeHomeRole } from '~/game/game-hooks'
 
 /** 标题图宽度占设计稿宽的比例 */
 const TITLE_WIDTH_W_RATIO = 420 / DESIGN_REF_W
@@ -40,7 +42,10 @@ const C_ICON_BG = 0xFFF9EF
 
 // 所有图片路径（统一在此定义，方便路由预加载）
 export const ASSET_URLS = [
-  'assets/scene/home/bg-home.jpg',
+  'assets/theme/default/home-bg.jpg',
+  'assets/theme/default/home-role.png',
+  'assets/theme/music/home-bg.png',
+  'assets/theme/music/home-role.png',
   'assets/text/ka-pi-ba-la.png',
   'assets/button/setting.png',
   'assets/button/invite.png',
@@ -50,7 +55,12 @@ export const ASSET_URLS = [
   'assets/scene/home/panel-level.png',
   'assets/button/shop.png',
   'assets/button/theme.png',
-  'assets/button/range.png'
+  'assets/button/range.png',
+  'assets/button/close.png',
+  'assets/button/button-yellow.png',
+  'assets/button/button-green.png',
+  'assets/button/button-blue.png',
+  'assets/common/bg-popup.png'
 ] as const
 
 export interface HomeOptions {
@@ -58,6 +68,7 @@ export interface HomeOptions {
   coins?: number
   hearts?: number
   maxHearts?: number
+  themeId?: GameThemeId
   onStart?: () => void
   onSettings?: () => void
   onShout?: () => void
@@ -84,7 +95,8 @@ export function create(
     onDailyChallenge = noop,
     onShop = noop,
     onTheme = noop,
-    onRank = noop
+    onRank = noop,
+    themeId = 'fruit' as GameThemeId
   } = opts
 
   const sw = windowWidth
@@ -95,8 +107,8 @@ export function create(
   // ── wrapper：无 transform，背景用真实屏幕像素布局 ────────
   const wrapper = new PIXI.Container()
 
-  // ── 背景图：默认按屏幕宽度 100% 铺满，高度等比，垂直居中 ─────
-  const bgSpr = S('assets/scene/home/bg-home.jpg')
+  // ── 背景图：按主题切换，屏幕宽度 100% 铺满，高度等比，垂直居中 ─────
+  const bgSpr = S(resolveThemeHomeBg(themeId))
   const bgTexW = bgSpr.texture.width || 1
   const bgTexH = bgSpr.texture.height || 1
   const bgScale = sw / bgTexW
@@ -137,9 +149,9 @@ export function create(
 
   const SETTING_SIZE = 64
   const SLOT_H = 56                          // pill 高
-  const SLOT_W = 196                         // pill 宽
+  const SLOT_W = 170                         // pill 宽
   const SLOT_GAP = 12                        // 两 pill 间距
-  const SLOT_R = SLOT_H / 2                  // pill 圆角
+  const SLOT_R = SLOT_H / 3                  // pill 圆角
   const SLOT1_X = 18 + SETTING_SIZE + 20    // 金币 pill 起点
   const SLOT2_X = SLOT1_X + SLOT_W + SLOT_GAP
 
@@ -174,7 +186,7 @@ export function create(
   goldIcon.position.set(SLOT1_X + 10, SLOT_Y + 8)
   root.addChild(goldIcon)
 
-  const goldText = TStroke(`${coins}`, 24, C_TEXT_DARK, '700')
+  const goldText = T(`${coins}`, 24, 'rgba(0,0,0,0.8)', '400')
   goldText.anchor.set(0, 0.5)
   goldText.position.set(SLOT1_X + 56, STATUS_CY)
   root.addChild(goldText)
@@ -192,7 +204,7 @@ export function create(
   heartIcon.position.set(SLOT2_X + 10, SLOT_Y + 10)
   root.addChild(heartIcon)
 
-  const heartText = TStroke(`${hearts}/${maxHearts}`, 24, C_TEXT_DARK, '700')
+  const heartText = T(`${hearts}/${maxHearts}`, 24, 'rgba(0,0,0,0.8)', '400')
   heartText.anchor.set(0, 0.5)
   heartText.position.set(SLOT2_X + 56, STATUS_CY)
   root.addChild(heartText)
@@ -303,10 +315,10 @@ export function create(
   })
 
 
-  // 卡皮巴拉角色静态图
+  // 卡皮巴拉角色静态图（按主题切换）
   const heroGroup = new PIXI.Container()
   heroGroup.position.set(DESIGN_W / 2, Math.round(DESIGN_H / 2))
-  const roleSpr = S('assets/role/role.png')
+  const roleSpr = S(resolveThemeHomeRole(themeId))
   roleSpr.anchor.set(0.5, 0.5)
   const targetW = Math.round((DESIGN_W * 2) / 3)
   const roleBase = (roleSpr.texture as any).baseTexture
@@ -415,7 +427,7 @@ function S(url: string): PIXI.Sprite {
 function T(
   text: string,
   size: number,
-  fill: number,
+  fill: number | string,
   weight: PIXI.TextStyleFontWeight = '400'
 ): PIXI.Text {
   return new PIXI.Text(text, {

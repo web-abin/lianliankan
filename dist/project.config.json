@@ -2,21 +2,21 @@
   "appid": "wx54d506ca8d073e11",
   "projectname": "dist",
   "compileType": "game",
-  "libVersion": "development",
+  "libVersion": "3.11.3",
   "packOptions": {
     "ignore": [],
     "include": []
   },
   "setting": {
     "coverView": true,
-    "es6": true,
+    "es6": false,
     "postcss": true,
     "minified": true,
     "enhance": true,
     "showShadowRootInWxmlPanel": true,
     "packNpmRelationList": [],
     "babelSetting": {
-      "ignore": [],
+      "ignore": ["context/**"],
       "disablePlugins": [],
       "outputPath": ""
     },

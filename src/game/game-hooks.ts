@@ -4,8 +4,11 @@
 import { action } from 'mobx'
 import { llk, persistLlkSave } from '~/game/llk-save'
 
-/** 5 个主题 ID，与需求文档一一对应 */
-export type GameThemeId = 'fruit' | 'emotion' | 'forest-music' | 'plant' | 'animal'
+/** 内测开关：打开后所有主题可直接切换，无需解锁 */
+export const BETA_UNLOCK_ALL = true
+
+/** 第一版上线的 3 个主题 ID */
+export type GameThemeId = 'fruit' | 'music' | 'animal'
 
 export interface ThemeAtlasPaths {
   imageUrl: string
@@ -17,56 +20,77 @@ export interface ThemeBackgroundSpec {
   fallbackColor: number
 }
 
-/**
- * 各主题图集路径
- * 当前均指向同一套占位图集，待美术切图后按主题替换
- */
+/** 各主题精灵图集路径 */
 export function resolveThemeAtlasPaths(themeId: GameThemeId): ThemeAtlasPaths {
   switch (themeId) {
-    case 'emotion':
-      return { imageUrl: 'assets/spritesheet/emotion.png', jsonUrl: 'assets/spritesheet/emotion.json' }
-    case 'forest-music':
-      return { imageUrl: 'assets/spritesheet/forest-music.png', jsonUrl: 'assets/spritesheet/forest-music.json' }
-    case 'plant':
-      return { imageUrl: 'assets/spritesheet/plant.png', jsonUrl: 'assets/spritesheet/plant.json' }
+    case 'music':
+      return {
+        imageUrl: 'assets/theme/music/spritesheet.png',
+        jsonUrl: 'assets/theme/music/spritesheet.json'
+      }
     case 'animal':
-      return { imageUrl: 'assets/spritesheet/animal.png', jsonUrl: 'assets/spritesheet/animal.json' }
+      return {
+        imageUrl: 'assets/theme/animal/spritesheet.png',
+        jsonUrl: 'assets/theme/animal/spritesheet.json'
+      }
     case 'fruit':
     default:
-      return { imageUrl: 'assets/spritesheet/food.png', jsonUrl: 'assets/spritesheet/food.json' }
+      return {
+        imageUrl: 'assets/theme/default/spritesheet.png',
+        jsonUrl: 'assets/theme/default/spritesheet.json'
+      }
   }
 }
 
 /**
  * 局内背景图资源
- * 当前仅情绪主题使用独立背景，其余主题暂时共用水果季背景图。
+ * 音乐/动物主题暂无独立游戏背景，复用默认背景
  */
-export function resolveThemeGameBackground(themeId: GameThemeId): ThemeBackgroundSpec {
+export function resolveThemeGameBackground(
+  themeId: GameThemeId
+): ThemeBackgroundSpec {
   switch (themeId) {
-    case 'emotion':
-      return {
-        imageUrl: 'assets/theme/bg-qingxu.webp',
-        fallbackColor: 0xb7e06e
-      }
-    case 'forest-music':
-    case 'plant':
-    case 'animal':
     case 'fruit':
+    case 'music':
+    case 'animal':
     default:
       return {
-        imageUrl: 'assets/theme/bg-fruit.jpg',
+        imageUrl: 'assets/theme/default/game-bg.jpg',
         fallbackColor: 0xb8df7a
       }
   }
 }
 
-// ── 主题解锁条件（与需求文档一致）──────────────────────
-// 情绪主题：主线累计通关 15 关
-const THRESHOLD_EMOTION_MAIN = 15
+/**
+ * 首页背景图路径（按主题区分）
+ */
+export function resolveThemeHomeBg(themeId: GameThemeId): string {
+  switch (themeId) {
+    case 'music':
+      return 'assets/theme/music/home-bg.png'
+    case 'fruit':
+    default:
+      // 动物主题暂无独立首页背景，复用默认
+      return 'assets/theme/default/home-bg.jpg'
+  }
+}
+
+/**
+ * 首页中心角色图路径（按主题区分）
+ */
+export function resolveThemeHomeRole(themeId: GameThemeId): string {
+  switch (themeId) {
+    case 'music':
+      return 'assets/theme/music/home-role.png'
+    case 'fruit':
+    default:
+      return 'assets/theme/default/home-role.png'
+  }
+}
+
+// ── 主题解锁条件 ──────────────────────────────────────
 // 森林音乐会主题：累计完成 5 次每日挑战
 const THRESHOLD_FOREST_MUSIC_DAILY = 5
-// 植物主题：累计消除 200 对
-const THRESHOLD_PLANT_PAIRS = 200
 // 动物主题：主线累计通关 40 关
 const THRESHOLD_ANIMAL_MAIN = 40
 
@@ -77,14 +101,15 @@ function ensureUnlocked(theme: GameThemeId) {
 
 /** 检查主题解锁成就，并持久化 */
 export const checkThemeAchievements = action(function checkThemeAchievements() {
-  if (llk.mainLevelsCleared >= THRESHOLD_EMOTION_MAIN) ensureUnlocked('emotion')
-  if (llk.dailyChallengeClears >= THRESHOLD_FOREST_MUSIC_DAILY) ensureUnlocked('forest-music')
-  if (llk.pairClearsTotal >= THRESHOLD_PLANT_PAIRS) ensureUnlocked('plant')
+  if (llk.dailyChallengeClears >= THRESHOLD_FOREST_MUSIC_DAILY)
+    ensureUnlocked('music')
   if (llk.mainLevelsCleared >= THRESHOLD_ANIMAL_MAIN) ensureUnlocked('animal')
   persistLlkSave()
 })
 
-export function notifyPairCleared(snapshot: { deltaPairs?: number } = {}): void {
+export function notifyPairCleared(
+  snapshot: { deltaPairs?: number } = {}
+): void {
   const d = snapshot.deltaPairs ?? 0
   if (d > 0) {
     llk.pairClearsTotal += d

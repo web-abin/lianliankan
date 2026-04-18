@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <title>透明元素抠图工具</title>
+    <style>
+        body {
+            padding: 30px;
+            font-family: Arial, sans-serif;
+        }
+        .box {
+            border: 2px dashed #aaa;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .btn-group {
+            margin: 10px 0;
+        }
+        button {
+            padding: 8px 16px;
+            margin-right: 8px;
+            cursor: pointer;
+        }
+        #result {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid #eee;
+            padding: 8px;
+            border-radius: 6px;
+        }
+        .item img {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        .item label {
+            margin-top: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h3>自动识别透明元素抠图</h3>
+    <input type="file" id="file" accept="image/png" />
+    <div class="btn-group">
+        <button id="start">开始抠图</button>
+        <button id="selectAll">全选</button>
+        <button id="unselectAll">全不选</button>
+        <button id="downloadSel">下载选中文件(ZIP)</button>
+    </div>
+</div>
+
+<h3>抠出结果（80×80 预览）：</h3>
+<div id="result"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script>
+    const fileInput = document.getElementById('file');
+    const startBtn = document.getElementById('start');
+    const selectAllBtn = document.getElementById('selectAll');
+    const unselectAllBtn = document.getElementById('unselectAll');
+    const downloadSelBtn = document.getElementById('downloadSel');
+    const result = document.getElementById('result');
+
+    let mainCanvas = document.createElement('canvas');
+    let mainCtx = mainCanvas.getContext('2d');
+    let img = null;
+    let elements = []; // { url, w, h, checked }
+
+    // 上传图片
+    fileInput.onchange = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            img = new Image();
+            img.onload = () => {
+                mainCanvas.width = img.width;
+                mainCanvas.height = img.height;
+                mainCtx.drawImage(img, 0, 0);
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // 开始抠图
+    startBtn.onclick = () => {
+        if (!img) return;
+        elements = [];
+        result.innerHTML = '';
+
+        const w = mainCanvas.width;
+        const h = mainCanvas.height;
+        const data = mainCtx.getImageData(0, 0, w, h).data;
+        const visited = new Uint8Array(w * h);
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const idx = (y * w + x) * 4;
+                const alpha = data[idx + 3];
+                if (alpha > 10 && visited[y * w + x] === 0) {
+                    const queue = [[x, y]];
+                    visited[y * w + x] = 1;
+
+                    let minX = x, maxX = x;
+                    let minY = y, maxY = y;
+
+                    while (queue.length) {
+                        const [cx, cy] = queue.shift();
+                        minX = Math.min(minX, cx);
+                        maxX = Math.max(maxX, cx);
+                        minY = Math.min(minY, cy);
+                        maxY = Math.max(maxY, cy);
+
+                        for (const [dx, dy] of dirs) {
+                            const nx = cx + dx;
+                            const ny = cy + dy;
+                            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                            if (visited[ny * w + nx]) continue;
+                            const nIdx = (ny * w + nx) * 4;
+                            if (data[nIdx + 3] > 10) {
+                                visited[ny * w + nx] = 1;
+                                queue.push([nx, ny]);
+                            }
+                        }
+                    }
+
+                    extractElement(minX, minY, maxX - minX + 1, maxY - minY + 1);
+                }
+            }
+        }
+    };
+
+    // 抠单个元素
+    function extractElement(x, y, w, h) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = w;
+        canvas.height = h;
+        ctx.drawImage(mainCanvas, x, y, w, h, 0, 0, w, h);
+        const url = canvas.toDataURL('image/png');
+
+        const idx = elements.length;
+        elements.push({ url, checked: true });
+
+        const item = document.createElement('div');
+        item.className = 'item';
+        item.innerHTML = `
+            <img src="${url}" />
+            <label>
+                <input type="checkbox" class="item-check" data-index="${idx}" checked>
+                第${idx + 1}个
+            </label>
+        `;
+        result.appendChild(item);
+    }
+
+    // 全选
+    selectAllBtn.onclick = () => {
+        document.querySelectorAll('.item-check').forEach(cb => {
+            cb.checked = true;
+            elements[cb.dataset.index].checked = true;
+        });
+    };
+
+    // 全不选
+    unselectAllBtn.onclick = () => {
+        document.querySelectorAll('.item-check').forEach(cb => {
+            cb.checked = false;
+            elements[cb.dataset.index].checked = false;
+        });
+    };
+
+    // 同步勾选状态
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('item-check')) {
+            const idx = e.target.dataset.index;
+            elements[idx].checked = e.target.checked;
+        }
+    });
+
+    // 下载选中
+    downloadSelBtn.onclick = async () => {
+        const selected = elements.filter(el => el.checked);
+        if (selected.length === 0) return;
+
+        const zip = new JSZip();
+        const folder = zip.folder("抠图结果");
+
+        selected.forEach((el, i) => {
+            const base64 = el.url.split(',')[1];
+            folder.file(`元素_${i + 1}.png`, base64, { base64: true });
+        });
+
+        const blob = await zip.generateAsync({ type: 'blob' });
+        saveAs(blob, "抠图结果.zip");
+    };
+</script>
+</body>
+</html>

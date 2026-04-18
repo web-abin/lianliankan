@@ -25,9 +25,9 @@ import {
 import { playEliminationEffect } from '~/ui/link-effect'
 
 export const GAME_PRELOAD_URLS = [
-  'assets/theme/bg-fruit.jpg',
-  'assets/theme/bg-qingxu.webp',
+  'assets/theme/default/game-bg.jpg',
   'assets/scene/game/chest.png',
+  'assets/scene/game/level-ip.png',
   'assets/common/star.png',
   'assets/common/star2.png',
   'assets/button/menu.png',
@@ -35,7 +35,19 @@ export const GAME_PRELOAD_URLS = [
   'assets/button/tool1.png',
   'assets/button/tool2.png',
   'assets/button/tool3.png',
-  'assets/spritesheet/food.png'
+  // 主题粒子贴图
+  'assets/theme/particle/flower1.png',
+  'assets/theme/particle/flower2.png',
+  'assets/theme/particle/flower3.png',
+  'assets/theme/particle/flower4.png',
+  'assets/theme/particle/grass1.png',
+  'assets/theme/particle/grass2.png',
+  'assets/theme/particle/grass3.png',
+  'assets/theme/particle/grass4.png',
+  'assets/theme/particle/star2.png',
+  'assets/theme/particle/yinfu1.png',
+  'assets/theme/particle/yinfu2.png',
+  'assets/theme/particle/yinfu3.png'
   // 音效勿加入此列表：Pixi Loader 在微信环境无法加载 mp3
 ] as const
 
@@ -54,6 +66,8 @@ export interface GameScreenOptions {
   maxHearts?: number
   /** 局内道具库存 */
   toolInventory?: { hint: number; refresh: number; eliminate: number }
+  /** 各道具今日可通过分享获取的剩余次数（决定角标是否显示加号） */
+  toolShareRemaining?: { hint: number; refresh: number; eliminate: number }
   onToolInventoryChange?: (inv: { hint: number; refresh: number; eliminate: number }) => void
   onBack: () => void
   onPause?: () => void
@@ -145,43 +159,94 @@ export function createGameScreen(
   topBar.position.set(0, STATUS_Y)
   root.addChild(topBar)
 
-  const titlePill = makePillLabel(
-    mode === 'daily' ? '每日挑战' : `主线 · 第${level}关`,
-    240,
-    50
+  // 设置按钮（左上角，与首页一致）
+  const SETTING_SIZE = 58
+  const settingBtn = new PIXI.Sprite(PIXI.Texture.from('assets/button/setting.png'))
+  settingBtn.anchor.set(0.5, 0.5)
+  settingBtn.position.set(16 + SETTING_SIZE / 2, SETTING_SIZE / 2 + 4)
+  fitSpriteInSquare(settingBtn, SETTING_SIZE)
+  ;(settingBtn as PIXI.DisplayObject & { interactive?: boolean }).interactive = true
+  settingBtn.on('pointerdown', () => onPause?.())
+  topBar.addChild(settingBtn)
+
+  // 顶部关卡进度组合条（白底 + 进度填充 + 卡皮巴拉 + 关卡文字 + 宝箱 + 黑描边）
+  const HEADER_W = 200
+  const HEADER_H = 48
+  const HEADER_X = (DESIGN_W - HEADER_W) / 2
+  const HEADER_Y_LOCAL = 32
+  const headerBar = new PIXI.Container()
+  headerBar.position.set(HEADER_X, HEADER_Y_LOCAL)
+  topBar.addChild(headerBar)
+
+  // 白色底背景
+  const headerBgWhite = new PIXI.Graphics()
+  headerBgWhite.beginFill(0xffffff)
+  headerBgWhite.drawRoundedRect(0, 0, HEADER_W, HEADER_H, 32)
+  headerBgWhite.endFill()
+  headerBar.addChild(headerBgWhite)
+
+  // 进度填充遮罩（圆角裁剪，避免溢出边界）
+  const headerFillMask = new PIXI.Graphics()
+  headerFillMask.beginFill(0xffffff)
+  headerFillMask.drawRoundedRect(1, 1, HEADER_W - 2, HEADER_H - 2, 31)
+  headerFillMask.endFill()
+  headerBar.addChild(headerFillMask)
+
+  // 进度填充色（#ddab74，从左到右）
+  const headerFill = new PIXI.Graphics()
+  headerFill.mask = headerFillMask
+  headerBar.addChild(headerFill)
+
+  // 卡皮巴拉头像（左侧）
+  const levelIpSpr = new PIXI.Sprite(PIXI.Texture.from('assets/scene/game/level-ip.png'))
+  levelIpSpr.anchor.set(0.5, 0.5)
+  levelIpSpr.position.set(0, HEADER_H / 2)
+  const applyLevelIpSize = () => {
+    const tex = levelIpSpr.texture
+    const tw = (tex as any).orig?.width || tex.width
+    const th = (tex as any).orig?.height || tex.height
+    if (tw > 0 && th > 0) {
+      const s = (HEADER_H - 2) / th
+      levelIpSpr.scale.set(s)
+    }
+  }
+  if (levelIpSpr.texture.valid) applyLevelIpSize()
+  else levelIpSpr.texture.baseTexture.once('loaded', applyLevelIpSize)
+
+  // 关卡文字（水平居中，黑色）
+  const levelLabel = new PIXI.Text(
+    mode === 'daily' ? '每日挑战' : `第${level}关`,
+    { fontFamily: FONT_FAMILY, fontSize: 28, fill: 0x000000, fontWeight: '800' }
   )
-  titlePill.position.set(DESIGN_W / 2 - titlePill.width / 2, 8)
-  topBar.addChild(titlePill)
+  levelLabel.anchor.set(0.5, 0.5)
+  levelLabel.position.set(HEADER_W / 2, HEADER_H / 2)
 
-  // 机制图标（点击可查看说明）
-  const mechIcon = new PIXI.Graphics()
-  mechIcon.visible = false
-  mechIcon.position.set(DESIGN_W / 2 - titlePill.width / 2 - 36 - 12, 8 + 25)
-  topBar.addChild(mechIcon)
+  // 黑色描边（覆盖进度填充上面）
+  const headerBorder = new PIXI.Graphics()
+  headerBorder.lineStyle(2, 0x000000, 1)
+  headerBorder.drawRoundedRect(0, 0, HEADER_W, HEADER_H, 12)
+  headerBar.addChild(headerBorder)
 
-  // 进度条
-  const PROGRESS_W = 300
-  const PROGRESS_H = 20
-  const progressFrame = makeProgressFrame(PROGRESS_W, PROGRESS_H)
-  progressFrame.root.position.set((DESIGN_W - PROGRESS_W) / 2, 64)
-  topBar.addChild(progressFrame.root)
+  // 头像与文字在描边上层，避免被边框遮住
+  headerBar.addChild(levelIpSpr)
+  headerBar.addChild(levelLabel)
 
-  const CHEST_CX = PROGRESS_W
-  const CHEST_CY = PROGRESS_H - 20
-  const CHEST_SCALE_BASE = 0.46
+  // 宝箱（右侧，与进度联动）
+  const CHEST_CX = HEADER_W + 26
+  const CHEST_CY = HEADER_H / 2
+  const CHEST_SCALE_BASE = 0.3
 
   // 宝箱上方漂浮星星粒子（治愈氛围）
   const chestSparkleEmitter = new PIXI.Container()
   chestSparkleEmitter.position.set(CHEST_CX, CHEST_CY + 10)
-  progressFrame.root.addChild(chestSparkleEmitter)
+  headerBar.addChild(chestSparkleEmitter)
 
   type IdleSparkle = { spr: PIXI.Sprite; born: number; life: number; vy: number; vx: number; baseScale: number }
   const idleSparkles: IdleSparkle[] = []
   let nextChestSparkleAt = 0
 
   const tickChestIdleSparkles = () => {
-    const pr = progressFrame.root
-    if ((pr as PIXI.DisplayObject & { destroyed?: boolean }).destroyed) {
+    if ((headerBar as PIXI.DisplayObject & { destroyed?: boolean }).destroyed) {
       PIXI.Ticker.shared.remove(tickChestIdleSparkles)
       return
     }
@@ -224,7 +289,26 @@ export function createGameScreen(
   chest.anchor.set(0.5, 0.5)
   chest.position.set(CHEST_CX, CHEST_CY)
   chest.scale.set(CHEST_SCALE_BASE)
-  progressFrame.root.addChild(chest)
+  headerBar.addChild(chest)
+
+  // 机制图标（点击可查看说明）
+  const mechIcon = new PIXI.Graphics()
+  mechIcon.visible = false
+  mechIcon.position.set(HEADER_X - 44, HEADER_Y_LOCAL + HEADER_H / 2)
+  topBar.addChild(mechIcon)
+
+  // 进度更新函数
+  const updateHeaderProgress = (percent: number) => {
+    const p = Math.max(0, Math.min(100, percent)) / 100
+    headerFill.clear()
+    if (p > 0) {
+      const fillW = Math.max(0, (HEADER_W - 2) * p)
+      headerFill.beginFill(0xddab74)
+      headerFill.drawRect(1, 1, fillW, HEADER_H - 2)
+      headerFill.endFill()
+    }
+  }
+  updateHeaderProgress(0)
 
   function pulseChestCollect() {
     playChestCollectSound()
@@ -240,11 +324,12 @@ export function createGameScreen(
     requestAnimationFrame(tickBounce)
   }
 
-  const TOOL_BTN = 120
+  // 道具栏按钮宽度
+  const TOOL_BTN = 140
   const toolBarPadBottom = 16
   const toolBarH = TOOL_BTN + toolBarPadBottom + 12
 
-  const boardTop = STATUS_Y + 130
+  const boardTop = STATUS_Y + 90
   const boardBottom = DESIGN_H - toolBarH - 8
   const boardH = Math.max(520, boardBottom - boardTop)
   const boardW = DESIGN_W - 16
@@ -353,50 +438,24 @@ export function createGameScreen(
     tiles.push(row)
   }
 
-  // 进度文本
-  const progressText = new PIXI.Text('0%', {
-    fontFamily: FONT_FAMILY,
-    fontSize: 18,
-    fill: 0x000000,
-    fontWeight: '800'
-  })
-  progressText.anchor.set(0.5, 0.5)
-  progressText.position.set(PROGRESS_W / 2, 10)
-  progressFrame.root.addChild(progressText)
-
-  // 底部道具栏（3 个道具位 + 1 个菜单按钮）
+  // 底部道具栏（3 个道具按钮居中，无菜单按钮）
   const dockY = DESIGN_H - toolBarH
   const dock = new PIXI.Container()
   dock.position.set(0, dockY)
   root.addChild(dock)
 
-  const sidePad = 24
-  const gap = (DESIGN_W - sidePad * 2 - 4 * TOOL_BTN) / 3
-
-  // 菜单按钮
-  const menuSlotCx = sidePad + TOOL_BTN / 2
-  const menuSlotCy = TOOL_BTN / 2 + 6
-  const menuBtn = new PIXI.Sprite(PIXI.Texture.from('assets/button/menu.png'))
-  menuBtn.anchor.set(0.5, 0.5)
-  menuBtn.position.set(menuSlotCx, menuSlotCy)
-  fitSpriteInSquare(menuBtn, TOOL_BTN * 0.92)
-  dock.addChild(menuBtn)
-
-  const menuHit = new PIXI.Graphics()
-  menuHit.beginFill(0xffffff, 0.001)
-  menuHit.drawRect(menuSlotCx - TOOL_BTN / 2, menuSlotCy - TOOL_BTN / 2, TOOL_BTN, TOOL_BTN)
-  menuHit.endFill()
-  ;(menuHit as PIXI.DisplayObject & { interactive?: boolean }).interactive = true
-  menuHit.on('pointerdown', () => onPause?.())
-  dock.addChild(menuHit)
+  const toolDockTypes = ['hint', 'refresh', 'eliminate'] as const
+  const TOOL_GAP = 40
+  const TOOL_ROW_W = 3 * TOOL_BTN + 2 * TOOL_GAP
+  const toolStartX = (DESIGN_W - TOOL_ROW_W) / 2
+  const toolSlotCy = TOOL_BTN / 2 + 6
 
   // 3 个道具按钮（提示/刷新/消除）
   for (let i = 0; i < 3; i++) {
-    const slotCx = sidePad + TOOL_BTN / 2 + (i + 1) * (TOOL_BTN + gap)
-    const slotCy = menuSlotCy
+    const slotCx = toolStartX + TOOL_BTN / 2 + i * (TOOL_BTN + TOOL_GAP)
 
     const g = new PIXI.Container()
-    g.position.set(slotCx, slotCy)
+    g.position.set(slotCx, toolSlotCy)
     dock.addChild(g)
 
     const tex = PIXI.Texture.from(`assets/button/tool${i + 1}.png`)
@@ -405,11 +464,19 @@ export function createGameScreen(
     fitSpriteInSquare(spr, TOOL_BTN * 0.92)
     g.addChild(spr)
 
-    const add = new PIXI.Sprite(PIXI.Texture.from('assets/button/tool-add.png'))
-    add.anchor.set(0.5, 0.5)
-    add.position.set(TOOL_BTN / 2 - 10, -TOOL_BTN / 2 + 10)
-    add.scale.set(0.24)
-    g.addChild(add)
+    // 角标：有道具显示数量，无道具可分享显示加号图标，无道具且不可分享则不显示
+    const toolType = toolDockTypes[i]
+    const toolCount = opts.toolInventory?.[toolType] ?? 0
+    const shareRemaining = opts.toolShareRemaining?.[toolType] ?? 0
+    if (toolCount > 0) {
+      const badge = makeToolBadge(String(toolCount))
+      badge.position.set(TOOL_BTN * 0.44 - 8, -TOOL_BTN * 0.44 + 8)
+      g.addChild(badge)
+    } else if (shareRemaining > 0) {
+      const badge = makeToolBadge(null)
+      badge.position.set(TOOL_BTN * 0.44 - 8, -TOOL_BTN * 0.44 + 8)
+      g.addChild(badge)
+    }
 
     const hitZone = new PIXI.Graphics()
     hitZone.beginFill(0xffffff, 0.001)
@@ -525,7 +592,8 @@ export function createGameScreen(
         posB: { x: gridOriginX + c * (cellW + colPad) + cellW / 2, y: gridOriginY + r * (cellH + rowPad) + cellH / 2 },
         cellW, cellH, gridOriginX, gridOriginY, colPad, rowPad, boardRows, boardCols,
         progressBarTarget: chest,
-        onProgressPulse: () => {}
+        onProgressPulse: () => {},
+        themeId
       })
       inputBlocked = false
       return
@@ -542,8 +610,8 @@ export function createGameScreen(
     }
     resetIconScale(tiles[sr][sc])
     resetIconScale(tiles[r][c])
-    animateMatchedRemoval(tiles[sr][sc])
-    animateMatchedRemoval(tiles[r][c])
+    animateMatchedRemoval(tiles[sr][sc], cellW, cellH)
+    animateMatchedRemoval(tiles[r][c], cellW, cellH)
 
     playEliminationEffect({
       fxLayer,
@@ -552,7 +620,8 @@ export function createGameScreen(
       posB: { x: gridOriginX + c * (cellW + colPad) + cellW / 2, y: gridOriginY + r * (cellH + rowPad) + cellH / 2 },
       cellW, cellH, gridOriginX, gridOriginY, colPad, rowPad, boardRows, boardCols,
       progressBarTarget: chest,
-      onProgressPulse: pulseChestCollect
+      onProgressPulse: pulseChestCollect,
+      themeId
     })
 
     inputBlocked = true
@@ -580,8 +649,7 @@ export function createGameScreen(
 
   function updateProgress() {
     const percent = Math.min(100, Math.floor((removedCount / totalCount) * 100))
-    progressText.text = `${percent}%`
-    drawProgressFill(progressFrame.fill, progressFrame.maxW, PROGRESS_H, percent)
+    updateHeaderProgress(percent)
     if (percent >= 100) {
       inputBlocked = true
       opts.onLevelClear?.({ level, steps: stepCount, pairsCleared: pairsClearedSession })
@@ -638,34 +706,48 @@ export function createGameScreen(
     }
   }
 
-  // ── 发牌动画 ──────────────────────────────────────────────────────────────
+  // ── 发牌动画（多米诺逐行弹出）──────────────────────────────────────────────
   function dealAnimate() {
-    const ROW_MS = 52
-    const ROW_DUR = 260
-    const easeOut = (u: number) => 1 - Math.pow(1 - u, 3)
+    const ROW_STAGGER = 55   // 行间延迟 ms（由下至上）
+    const COL_STAGGER = 28   // 行内列间延迟 ms（多米诺骨牌效果）
+    const TILE_DUR = 300     // 单块动画时长 ms
+    const SLIDE_PX = 32      // 起始下移量
+
+    // 弹跳缓动（过冲后回弹，模拟弹跳落位感）
+    const easeOutBack = (u: number) => {
+      const c = 1.6
+      return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2)
+    }
 
     for (let r = boardRows - 1; r >= 0; r--) {
-      const rowDelay = (boardRows - 1 - r) * ROW_MS
+      const rowIdx = boardRows - 1 - r  // 底行先出
       for (let c = 0; c < boardCols; c++) {
         const t = tiles[r][c]
         const baseX = gridOriginX + c * (cellW + colPad)
         const baseY = gridOriginY + r * (cellH + rowPad)
-        const fromY = baseY + dealSlidePx
+        const fromY = baseY + SLIDE_PX
+        const delay = rowIdx * ROW_STAGGER + c * COL_STAGGER
+
+        t.box.position.set(baseX, fromY)
+        t.box.alpha = 0
+
         setTimeout(() => {
           const start = Date.now()
           const tick = () => {
-            const u = Math.min(1, (Date.now() - start) / ROW_DUR)
-            const e = easeOut(u)
+            const u = Math.min(1, (Date.now() - start) / TILE_DUR)
+            const e = easeOutBack(u)
             t.box.position.set(baseX, fromY + (baseY - fromY) * e)
-            t.box.alpha = e
+            t.box.alpha = Math.min(1, u * 2.5)
             if (u < 1) requestAnimationFrame(tick)
+            else { t.box.position.set(baseX, baseY); t.box.alpha = 1 }
           }
           requestAnimationFrame(tick)
-        }, rowDelay)
+        }, delay)
       }
     }
 
-    const maxDelay = (boardRows - 1) * ROW_MS + ROW_DUR + 80
+    // 最后一块动画结束后解锁输入（整体约 0.8～1.2 秒）
+    const maxDelay = (boardRows - 1) * ROW_STAGGER + (boardCols - 1) * COL_STAGGER + TILE_DUR + 80
     setTimeout(() => {
       inputBlocked = false
       if (hasMechanism) showMechanismOverlay()
@@ -675,7 +757,7 @@ export function createGameScreen(
   // ── 机制说明蒙层 ──────────────────────────────────────────────────────────
   function showMechanismOverlay() {
     const g = new PIXI.Graphics()
-    g.beginFill(0x000000, 0.55)
+    g.beginFill(0x000000, 0.6)
     g.drawRect(0, 0, DESIGN_W, DESIGN_H)
     g.endFill()
     overlayLayer.addChild(g)
@@ -745,43 +827,33 @@ function fitSpriteInSquare(spr: PIXI.Sprite, maxSide: number) {
   spr.scale.set(maxSide / Math.max(tw, th))
 }
 
-function makePillLabel(text: string, w: number, h: number): PIXI.Container {
+// 道具角标：红色圆形背景，黑色描边，白色内容（数字或加号图标）
+function makeToolBadge(text: string | null): PIXI.Container {
+  const BADGE_R = 16
   const c = new PIXI.Container()
   const g = new PIXI.Graphics()
-  g.beginFill(0xf9f0df, 0.96)
-  g.lineStyle(2, 0x8e6435, 0.95)
-  g.drawRoundedRect(0, 0, w, h, h)
+  g.lineStyle(2, 0x000000, 1)
+  g.beginFill(0xff0000, 1)
+  g.drawCircle(0, 0, BADGE_R)
   g.endFill()
   c.addChild(g)
-  const t = new PIXI.Text(text, { fontFamily: FONT_FAMILY, fontSize: 28, fill: 0x5c3d1e, fontWeight: '800' })
-  t.anchor.set(0.5, 0.5)
-  t.position.set(w / 2, h / 2)
-  c.addChild(t)
+  if (text !== null) {
+    const t = new PIXI.Text(text, {
+      fontFamily: FONT_FAMILY,
+      fontSize: 18,
+      fill: 0xffffff,
+      fontWeight: '800'
+    })
+    t.anchor.set(0.5, 0.5)
+    c.addChild(t)
+  } else {
+    // 无道具但可分享时，显示加号图标
+    const addSpr = new PIXI.Sprite(PIXI.Texture.from('assets/button/tool-add.png'))
+    addSpr.anchor.set(0.5, 0.5)
+    fitSpriteInSquare(addSpr, BADGE_R * 1.1)
+    c.addChild(addSpr)
+  }
   return c
-}
-
-function makeProgressFrame(w: number, h: number) {
-  const root = new PIXI.Container()
-  const bg = new PIXI.Graphics()
-  bg.beginFill(0xfff5ed, 0.96)
-  bg.lineStyle(2.5, 0x7a4e2d, 0.92)
-  bg.drawRoundedRect(0, 0, w, h, h)
-  bg.endFill()
-  root.addChild(bg)
-  const fill = new PIXI.Graphics()
-  const maxW = w - 12
-  drawProgressFill(fill, maxW, h, 0)
-  root.addChild(fill)
-  return { root, fill, maxW }
-}
-
-function drawProgressFill(g: PIXI.Graphics, maxW: number, frameH: number, percent: number) {
-  const innerH = frameH - 12
-  const w = Math.max(0, (maxW * percent) / 100)
-  g.clear()
-  g.beginFill(0xe8b896, 0.98)
-  g.drawRoundedRect(6, 6, w, innerH, innerH / 2)
-  g.endFill()
 }
 
 function tileCornerRadius(w: number): number {
@@ -870,8 +942,9 @@ function lerpColor(a: number, b: number, u: number): number {
   return (Math.round(ar + (br - ar) * u) << 16) | (Math.round(ag + (bg - ag) * u) << 8) | Math.round(ab + (bb - ab) * u)
 }
 
-function animateMatchedRemoval(tile: { box: PIXI.Container; icon: PIXI.Sprite }) {
+function animateMatchedRemoval(tile: { box: PIXI.Container; icon: PIXI.Sprite }, cw: number, ch: number) {
   const { box, icon } = tile
+  const ox = box.x, oy = box.y
   const start = Date.now()
   const tick = () => {
     const elapsed = Date.now() - start
@@ -881,15 +954,30 @@ function animateMatchedRemoval(tile: { box: PIXI.Container; icon: PIXI.Sprite })
       const u = (elapsed - 100) / 300
       const s = 1 - (1 - Math.pow(1 - u, 3))
       box.scale.set(s); box.alpha = s
+      // 向中心缩小（补偿 scale 从左上角开始缩放的偏移）
+      box.position.set(ox + cw * (1 - s) / 2, oy + ch * (1 - s) / 2)
     } else { box.scale.set(0); box.alpha = 0 }
     requestAnimationFrame(tick)
   }
   requestAnimationFrame(tick)
 }
 
-function flashWrong(tile: { icon: PIXI.Sprite }) {
+function flashWrong(tile: { icon: PIXI.Sprite; box: PIXI.Container }) {
+  // 红色高亮 + 横向快速抖动（±4px，3 次）
   tile.icon.tint = 0xffcaca
-  setTimeout(() => { tile.icon.tint = 0xffffff }, 120)
+  const ox = tile.box.x
+  let count = 0
+  const step = () => {
+    if (count >= 6) {
+      tile.box.x = ox
+      tile.icon.tint = 0xffffff
+      return
+    }
+    count++
+    tile.box.x = ox + (count % 2 === 1 ? 4 : -4)
+    setTimeout(step, 40)
+  }
+  setTimeout(step, 0)
 }
 
 function bounceTile(tile: PIXI.Container, peak: number) {
