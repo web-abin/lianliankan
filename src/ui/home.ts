@@ -43,6 +43,8 @@ const C_ICON_BG = 0xFFF9EF
 // 所有图片路径（统一在此定义，方便路由预加载）
 export const ASSET_URLS = [
   'assets/theme/default/home-bg.jpg',
+  'assets/theme/music/home-bg.jpg',
+  'assets/theme/animal/home-bg.jpg',
   'assets/theme/default/home-role.png',
   'assets/theme/music/home-bg.png',
   'assets/theme/music/home-role.png',

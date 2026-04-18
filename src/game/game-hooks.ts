@@ -75,9 +75,9 @@ export function resolveThemeHomeBg(themeId: GameThemeId): string {
   switch (themeId) {
     case 'music':
       return 'assets/theme/music/home-bg.png'
-    case 'fruit':
+    case 'animal':
+      return 'assets/theme/animal/home-bg.png'
     default:
-      // 动物主题暂无独立首页背景，复用默认
       return 'assets/theme/default/home-bg.jpg'
   }
 }
