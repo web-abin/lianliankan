@@ -50,9 +50,16 @@ export function resolveThemeGameBackground(
   themeId: GameThemeId
 ): ThemeBackgroundSpec {
   switch (themeId) {
-    case 'fruit':
     case 'music':
+      return {
+        imageUrl: 'assets/theme/music/game-bg.png',
+        fallbackColor: 0xb8df7a
+      }
     case 'animal':
+      return {
+        imageUrl: 'assets/theme/animal/game-bg.png',
+        fallbackColor: 0xb8df7a
+      }
     default:
       return {
         imageUrl: 'assets/theme/default/game-bg.jpg',

@@ -25,6 +25,8 @@ import {
 import { playEliminationEffect } from '~/ui/link-effect'
 
 export const GAME_PRELOAD_URLS = [
+  'assets/theme/animal/game-bg.png',
+  'assets/theme/music/game-bg.png',
   'assets/theme/default/game-bg.jpg',
   'assets/scene/game/chest.png',
   'assets/scene/game/level-ip.png',
