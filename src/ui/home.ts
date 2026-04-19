@@ -43,11 +43,11 @@ const C_ICON_BG = 0xFFF9EF
 // 所有图片路径（统一在此定义，方便路由预加载）
 export const ASSET_URLS = [
   'assets/theme/default/home-bg.jpg',
-  'assets/theme/music/home-bg.jpg',
-  'assets/theme/animal/home-bg.jpg',
-  'assets/theme/default/home-role.png',
   'assets/theme/music/home-bg.png',
+  'assets/theme/animal/home-bg.png',
+  'assets/theme/default/home-role.png',
   'assets/theme/music/home-role.png',
+  'assets/theme/animal/home-role.png',
   'assets/text/ka-pi-ba-la.png',
   'assets/button/setting.png',
   'assets/button/invite.png',
@@ -62,7 +62,8 @@ export const ASSET_URLS = [
   'assets/button/button-yellow.png',
   'assets/button/button-green.png',
   'assets/button/button-blue.png',
-  'assets/common/bg-popup.png'
+  'assets/common/bg-popup.png',
+  'assets/button/back.png'
 ] as const
 
 export interface HomeOptions {
@@ -322,7 +323,7 @@ export function create(
   heroGroup.position.set(DESIGN_W / 2, Math.round(DESIGN_H / 2))
   const roleSpr = S(resolveThemeHomeRole(themeId))
   roleSpr.anchor.set(0.5, 0.5)
-  const targetW = Math.round((DESIGN_W * 2) / 3)
+  const targetW = Math.round((DESIGN_W * 1) / 3)
   const roleBase = (roleSpr.texture as any).baseTexture
   const applyRoleSize = () => {
     const w = roleSpr.texture.width

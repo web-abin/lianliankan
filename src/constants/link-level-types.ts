@@ -14,6 +14,8 @@ export interface MainLineLevelEntry {
   gravity?: GravityDir
   /** 是否启用果冻层机制 */
   jelly?: boolean
+  /** 果冻覆盖的图块对数（必须为偶数，每对同类型），0 或不填时全部覆盖 */
+  jellyCount?: number
 }
 
 export interface MainLineManifest {

@@ -63,7 +63,7 @@ export async function buildDailyLevelConfig(
     id: `daily-${dayKey}`,
     cols,
     rows,
-    kindCount: 15,
+    kindCount: 25,
     gravity,
     jelly: true
   }

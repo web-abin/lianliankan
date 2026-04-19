@@ -105,6 +105,8 @@ export function createGameScreen(
   const kindCount = Math.min(tileTextures.length, levelConfig.kindCount)
   const gravity = levelConfig.gravity ?? 'none'
   const useJelly = !!levelConfig.jelly
+  // 果冻覆盖数量：jellyCount 指定对数（即实际图块数 = jellyCount），0 或不填则全部覆盖
+  const jellyCount = levelConfig.jellyCount ?? 0
   const hasMechanism = gravity !== 'none' || useJelly
 
   const sw = windowWidth
@@ -374,11 +376,48 @@ export function createGameScreen(
   let removedCount = 0
   const totalCount = boardRows * boardCols
 
+  // 计算哪些位置需要果冻（部分覆盖时按配对选取）
+  const jellySet = new Set<number>()
+  if (useJelly) {
+    if (jellyCount > 0 && jellyCount < totalCount) {
+      // 部分果冻：按类型配对选取 jellyCount 个图块
+      const typeMap = new Map<number, number[]>() // type -> [flatIndex...]
+      for (let i = 0; i < ids.length; i++) {
+        const arr = typeMap.get(ids[i]) || []
+        arr.push(i)
+        typeMap.set(ids[i], arr)
+      }
+      // 收集可用的配对（每对同类型）
+      const availablePairs: [number, number][] = []
+      for (const [, indices] of typeMap) {
+        for (let p = 0; p + 1 < indices.length; p += 2) {
+          availablePairs.push([indices[p], indices[p + 1]])
+        }
+      }
+      // 随机选取 jellyCount/2 对
+      for (let i = availablePairs.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[availablePairs[i], availablePairs[j]] = [availablePairs[j], availablePairs[i]]
+      }
+      const pairsNeeded = Math.floor(jellyCount / 2)
+      for (let i = 0; i < Math.min(pairsNeeded, availablePairs.length); i++) {
+        jellySet.add(availablePairs[i][0])
+        jellySet.add(availablePairs[i][1])
+      }
+    } else {
+      // 全部覆盖
+      for (let i = 0; i < totalCount; i++) jellySet.add(i)
+    }
+  }
+
   // 铺设砖块
+  let flatIdx = 0
   for (let r = 0; r < boardRows; r++) {
     const row: Tile[] = []
     for (let c = 0; c < boardCols; c++) {
       const type = ids[idx++]
+      const hasJelly = jellySet.has(flatIdx)
+      flatIdx++
       const box = new PIXI.Container()
       box.position.set(
         gridOriginX + c * (cellW + colPad),
@@ -406,9 +445,9 @@ export function createGameScreen(
       icon.scale.set(maxIcon / Math.max(tw0, th0))
       box.addChild(icon)
 
-      // 果冻层覆盖（仅在 useJelly 时绘制）
+      // 果冻层覆盖（仅对需要果冻的图块绘制）
       let jellyG: PIXI.Graphics | null = null
-      if (useJelly) {
+      if (hasJelly) {
         jellyG = new PIXI.Graphics()
         drawJellyOverlay(jellyG, cellW, cellH, true)
         box.addChild(jellyG)
@@ -431,7 +470,7 @@ export function createGameScreen(
         box,
         bg: bgCell,
         icon,
-        jellyState: useJelly ? 'intact' : 'none',
+        jellyState: hasJelly ? 'intact' : 'none',
         jellyG
       }
       row.push(tile)

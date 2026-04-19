@@ -89,7 +89,8 @@ export function resolveThemeHomeRole(themeId: GameThemeId): string {
   switch (themeId) {
     case 'music':
       return 'assets/theme/music/home-role.png'
-    case 'fruit':
+    case 'animal':
+      return 'assets/theme/animal/home-role.png'
     default:
       return 'assets/theme/default/home-role.png'
   }
